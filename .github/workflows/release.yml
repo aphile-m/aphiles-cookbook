@@ -1,0 +1,117 @@
+name: Release (APK + OTA bundle)
+
+# Cloud equivalent of make-release.ps1 + ota-deploy.ps1, so a release can be
+# cut without a local Android toolchain. Trigger it from the GitHub mobile app
+# (Actions -> Run workflow) or have Claude trigger it via the API. It builds the
+# debug APK, zips the web bundle, writes version.json, and publishes a Release
+# whose /releases/latest/download/ URLs the in-app updater already points at.
+
+on:
+  workflow_dispatch:
+    inputs:
+      notes:
+        description: "Release notes (what changed in this version)"
+        required: false
+        default: "Maintenance update."
+      web_requires_native:
+        description: "Minimum native build this web bundle needs (usually 1; raise only if the web code needs a newer APK)."
+        required: false
+        default: "1"
+
+permissions:
+  contents: write   # create tags/releases with the built-in GITHUB_TOKEN
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Sync web assets into Android
+        run: npx cap sync android
+
+      - name: Build debug APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Assemble release assets
+        id: assets
+        env:
+          NOTES: ${{ inputs.notes }}
+          REQ_NATIVE: ${{ inputs.web_requires_native }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/Aphiles-Cookbook.apk
+          # www contents at the zip root, matching make-release.ps1
+          (cd www && zip -qr ../release/www-bundle.zip .)
+
+          WEB=$(grep -oP "APP_WEB_VERSION\s*=\s*['\"]?\K[0-9.]+" www/index.html | head -1)
+          NATIVE=$(grep -oP "versionCode\s+\K[0-9]+" android/app/build.gradle | head -1)
+          if [ -z "$WEB" ] || [ -z "$NATIVE" ]; then
+            echo "::error::Could not read web ($WEB) or native ($NATIVE) version"; exit 1
+          fi
+          echo "web=$WEB"     >> "$GITHUB_OUTPUT"
+          echo "native=$NATIVE" >> "$GITHUB_OUTPUT"
+
+          BASE="https://github.com/${{ github.repository }}/releases/latest/download"
+          # jq builds the JSON so notes with quotes/newlines can't corrupt it.
+          jq -n \
+            --arg web "$WEB" \
+            --argjson native "$NATIVE" \
+            --argjson req "${REQ_NATIVE:-1}" \
+            --arg apk "$BASE/Aphiles-Cookbook.apk" \
+            --arg bundle "$BASE/www-bundle.zip" \
+            --arg notes "$NOTES" \
+            '{web:$web, native:$native, webRequiresNative:$req, apkUrl:$apk, bundleUrl:$bundle, notes:$notes}' \
+            > release/version.json
+          echo "--- version.json ---"; cat release/version.json
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          TAG="web-v${{ steps.assets.outputs.web }}"
+          # Replace cleanly if this version was released before (re-run).
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES" \
+            --latest \
+            release/Aphiles-Cookbook.apk release/www-bundle.zip release/version.json
+
+      - name: Summary
+        run: |
+          {
+            echo "### Released web-v${{ steps.assets.outputs.web }} :rocket:"
+            echo ""
+            echo "- web version: \`${{ steps.assets.outputs.web }}\`"
+            echo "- native build: \`${{ steps.assets.outputs.native }}\`"
+            echo "- Update URL: https://github.com/${{ github.repository }}/releases/latest/download/version.json"
+            echo ""
+            echo "On the phone: open the app -> it sees the new version -> tap the update bar."
+          } >> "$GITHUB_STEP_SUMMARY"

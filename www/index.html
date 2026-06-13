@@ -218,6 +218,62 @@
     .ing-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
 
     /* ────────────────────────────────────────
+       PANTRY & COMBINED SHOPPING LIST
+    ──────────────────────────────────────── */
+    .pan-top { padding: calc(14px + env(safe-area-inset-top)) 24px 0; flex-shrink: 0; }
+    .pan-h1 { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; line-height: 1.2; margin-top: 6px; }
+    .pan-h1 em { font-style: italic; color: var(--ember); }
+    .seg { display: flex; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-top: 14px; }
+    .seg button {
+      flex: 1; padding: 10px; border: none; background: transparent; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; border-radius: 9px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent; transition: background .2s, color .2s;
+    }
+    .seg button.on { background: var(--ember); color: #fff; }
+    .pan-filters { display: flex; flex-direction: column; gap: 7px; padding: 12px 0 4px; flex-shrink: 0; }
+    .pan-filters:empty { display: none; }
+    .frow { display: flex; gap: 7px; overflow-x: auto; padding: 0 24px; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .frow::-webkit-scrollbar { display: none; }
+    .frow-lbl { flex-shrink: 0; align-self: center; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); font-weight: 700; padding-right: 2px; }
+    .fchip {
+      flex-shrink: 0; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 12.5px; font-weight: 600;
+      cursor: pointer; white-space: nowrap; -webkit-tap-highlight-color: transparent;
+    }
+    .fchip.on { background: var(--ember-glow); border-color: var(--ember); color: var(--ember); }
+    .pan-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 6px 16px calc(20px + env(safe-area-inset-bottom)); }
+    .pan-cat { padding: 16px 8px 6px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .pan-cat::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .shop-item { display: flex; align-items: flex-start; gap: 12px; padding: 11px 12px; border-radius: var(--rs); border: 1px solid transparent; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .shop-item:active { opacity: .7; }
+    .shop-tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; margin-top: 1px; transition: background .2s, border-color .2s; }
+    .shop-main { flex: 1; min-width: 0; }
+    .shop-iname { font-size: 15px; line-height: 1.3; }
+    .shop-for { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 5px; }
+    .for-chip { font-size: 10.5px; font-weight: 600; padding: 2px 8px; border-radius: 8px; background: var(--ember-glow); color: var(--ember); }
+    .for-chip .qn { color: var(--muted); font-weight: 500; }
+    .cat-edit { background: none; border: none; color: var(--dim); font-size: 17px; cursor: pointer; padding: 4px 2px; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+    .cat-edit:active { opacity: .6; }
+    .pan-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 48px 24px; line-height: 1.6; }
+    .pan-empty-ic { font-size: 34px; display: block; margin-bottom: 10px; }
+    .pan-add { display: flex; gap: 8px; padding: 10px 8px 6px; }
+    .pan-add input {
+      flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs);
+      color: var(--text); padding: 11px 12px; font-family: 'DM Sans', sans-serif; font-size: 14px;
+    }
+    .pan-add input:focus { outline: none; border-color: var(--ember); }
+    .pan-add button { flex-shrink: 0; padding: 0 16px; border: none; border-radius: var(--rs); background: var(--ember); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .have-item { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: var(--rs); border: 1px solid transparent; }
+    .have-name { flex: 1; min-width: 0; font-size: 15px; }
+    .have-src { font-size: 10.5px; color: var(--dim); margin-left: 6px; }
+    .have-del { background: none; border: none; color: var(--dim); font-size: 16px; cursor: pointer; padding: 6px; -webkit-tap-highlight-color: transparent; flex-shrink: 0; }
+    .have-del:active { color: var(--red); }
+    /* category picker overlay reuses .modal-overlay; chips grid */
+    .cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 14px; }
+    .cat-opt { display: flex; align-items: center; gap: 9px; padding: 12px; border-radius: var(--rs); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .cat-opt.on { border-color: var(--ember); background: var(--ember-glow); color: var(--ember); }
+
+    /* ────────────────────────────────────────
        STEPS
     ──────────────────────────────────────── */
     .step-hdr {
@@ -500,7 +556,10 @@
         <div class="eyebrow">Aphile's</div>
         <h1>Cook<em>book</em></h1>
       </div>
-      <button class="gear-btn" onclick="openSettings()">⚙️</button>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="gear-btn" style="margin-top:0" onclick="openPantry()" aria-label="Pantry and shopping list">🧺</button>
+        <button class="gear-btn" style="margin-top:0" onclick="openSettings()" aria-label="Settings">⚙️</button>
+      </div>
     </div>
     <button class="update-bar" id="update-bar" style="display:none" onclick="onUpdateBarTap()">
       <span class="update-bar-ic">⬆️</span>
@@ -512,6 +571,20 @@
       <button class="btn-primary" onclick="openAddSheet()">＋ Add a recipe</button>
       <button class="restore-link" id="restore-link" style="display:none" onclick="restoreBuiltin()">Restore the built-in potjie recipe</button>
     </div>
+  </div>
+
+  <!-- ── PANTRY & SHOPPING ── -->
+  <div class="screen" id="screen-pantry">
+    <div class="pan-top">
+      <button class="back-btn" onclick="goHome()">‹ Cookbook</button>
+      <h1 class="pan-h1">Pantry <em>&amp; shopping</em></h1>
+      <div class="seg">
+        <button id="seg-shop" class="on" onclick="setPanTab('shop')">🛒 Shopping list</button>
+        <button id="seg-have" onclick="setPanTab('have')">🧺 What's there</button>
+      </div>
+    </div>
+    <div class="pan-filters" id="pan-filters"></div>
+    <div class="pan-body" id="pan-body"></div>
   </div>
 
   <!-- ── CHECKLIST ── -->
@@ -665,6 +738,20 @@
     </div>
   </div>
 
+  <!-- ── CATEGORY PICKER ── -->
+  <div class="modal-overlay" id="cat-overlay" onclick="if(event.target===this)closeCatPicker()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr">
+        <div class="sheet-title">Which aisle?</div>
+        <div class="sheet-meta" id="cat-meta"></div>
+      </div>
+      <div class="sheet-body">
+        <div class="cat-grid" id="cat-grid"></div>
+      </div>
+    </div>
+  </div>
+
   <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="photoPicked(event)">
   <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="photoPicked(event)">
 
@@ -764,6 +851,7 @@ let state = {
   active: null,          // recipe id currently open
   progress: {},          // progress[id] = {stock, checkedTools, servings, step, phase, timers}
   catOverride: {},       // catOverride[normIngName] = categoryId — manual, global category fixes
+  pantry: {},            // pantry[normIngName] = {name, cat} — manually-added "what's there" items
 };
 let apiKey = '';
 let going = false;
@@ -809,6 +897,15 @@ const CAT_BY_ID = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
    across recipes and the pantry: lowercase, drop prep notes after a comma,
    drop parentheticals, strip punctuation, collapse spaces.
    "Onion, finely chopped" -> "onion". */
+/* Light singularizer so "Onions"/"Onion" and "Tomatoes"/"Tomato" match. */
+function singular(w) {
+  if (/(ss|us|is)$/.test(w)) return w;                  // glass, hummus, basis
+  if (/ies$/.test(w)) return w.slice(0, -3) + 'y';      // berries -> berry
+  if (/(ches|shes|xes|zes|ses)$/.test(w)) return w.slice(0, -2); // boxes -> box
+  if (/oes$/.test(w)) return w.slice(0, -2);            // tomatoes -> tomato
+  if (/s$/.test(w) && w.length > 3) return w.slice(0, -1); // onions -> onion
+  return w;
+}
 function normIng(name) {
   return String(name || '')
     .toLowerCase()
@@ -816,7 +913,8 @@ function normIng(name) {
     .replace(/\([^)]*\)/g, ' ')
     .replace(/[^a-z0-9 ]/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .split(' ').map(singular).join(' ');
 }
 
 /* Keyword -> category, first match wins. Order matters: tinned goods and
@@ -951,6 +1049,7 @@ function loadState() {
       const s = JSON.parse(raw);
       if (s && Array.isArray(s.recipes) && s.recipes.length) state = s;
       if (!state.catOverride) state.catOverride = {};
+      if (!state.pantry) state.pantry = {};
       // migrate old binary checklist (checked:[indices]) to tri-state stock map
       for (const rid in state.progress) {
         const pr = state.progress[rid];
@@ -1551,6 +1650,217 @@ function showCopied(btn) {
   btn.style.background = '#6BAA52';
   setTimeout(() => { btn.textContent = 'Copy to clipboard'; btn.style.background = ''; }, 2500);
 }
+
+/* ═══════════════ PANTRY & COMBINED SHOPPING LIST ═══════════════ */
+let panTab = 'shop';          // 'shop' | 'have'
+let panRecipeFilter = 'all';  // recipe id | 'all'
+let panCatFilter = 'all';     // category id | 'all'
+let catPickKey = null;        // ingredient key being recategorised
+
+function openPantry() {
+  state.active = null;
+  panTab = 'shop'; panRecipeFilter = 'all'; panCatFilter = 'all';
+  showScr('screen-pantry');
+  renderPantry();
+}
+function setPanTab(t) {
+  if (panTab === t) return;
+  panTab = t; panCatFilter = 'all'; panRecipeFilter = 'all';
+  renderPantry();
+}
+function setPanRecipeFilter(rid) { panRecipeFilter = (panRecipeFilter == rid) ? 'all' : rid; renderPantry(); }
+function setPanCatFilter(cid)    { panCatFilter = (panCatFilter === cid) ? 'all' : cid; renderPantry(); }
+
+/* scaled quantity as plain text for a recipe ingredient */
+function ingQty(g, servings, base) {
+  if (!g.a) return g.u || '';
+  const v = g.a * ((servings || base) / base);
+  return g.u ? `${fmtN(v)} ${g.u}` : fmtN(v);
+}
+
+/* Every to-buy item across all recipes, deduped by normalised name.
+   Includes 'need' (don't have) and 'last' (using the last — now out). */
+function buildShoppingItems() {
+  const map = {};
+  for (const r of state.recipes) {
+    const p = state.progress[r.id];
+    const servings = p ? p.servings : r.base;
+    r.ings.forEach((g, i) => {
+      const st = p ? ingState(p, i) : 'need';
+      if (st !== 'need' && st !== 'last') return;
+      const key = normIng(g.n);
+      if (!key) return;
+      if (!map[key]) map[key] = { key, name: g.n, cat: catOf(g), refs: [] };
+      map[key].refs.push({ rid: r.id, recipe: r.name, qty: ingQty(g, servings, r.base), last: st === 'last' });
+    });
+  }
+  return Object.values(map);
+}
+
+/* What's in the pantry: ingredients marked 'have' in any recipe, plus
+   manually-added items. Deduped by normalised name. */
+function buildHaveItems() {
+  const map = {};
+  for (const r of state.recipes) {
+    const p = state.progress[r.id]; if (!p) continue;
+    r.ings.forEach((g, i) => {
+      if (ingState(p, i) !== 'have') return;
+      const key = normIng(g.n); if (!key) return;
+      if (!map[key]) map[key] = { key, name: g.n, cat: catOf(g) };
+    });
+  }
+  const man = state.pantry || {};
+  for (const key in man) {
+    if (!map[key]) map[key] = { key, name: man[key].name, cat: catOf({ n: man[key].name, c: man[key].cat }), manual: true };
+  }
+  return Object.values(map);
+}
+
+function groupByCat(items) {
+  const groups = {};
+  for (const it of items) (groups[it.cat] = groups[it.cat] || []).push(it);
+  return CATEGORIES.filter(c => groups[c.id])
+    .map(c => ({ cat: c, items: groups[c.id].sort((a, b) => a.name.localeCompare(b.name)) }));
+}
+
+function renderPantry() {
+  document.getElementById('seg-shop').classList.toggle('on', panTab === 'shop');
+  document.getElementById('seg-have').classList.toggle('on', panTab === 'have');
+  if (panTab === 'shop') renderShopTab(); else renderHaveTab();
+}
+
+/* aisle/type filter row, only when 2+ categories are present */
+function catChipsRow(items) {
+  const present = CATEGORIES.filter(c => items.some(it => it.cat === c.id));
+  if (present.length < 2) return '';
+  const chip = (id, label, on) => `<button class="fchip ${on ? 'on' : ''}" onclick="setPanCatFilter('${id}')">${label}</button>`;
+  return `<div class="frow"><span class="frow-lbl">Aisle</span>` +
+    chip('all', 'All', panCatFilter === 'all') +
+    present.map(c => chip(c.id, c.emoji + ' ' + c.label, panCatFilter === c.id)).join('') + `</div>`;
+}
+
+function renderShopTab() {
+  const all = buildShoppingItems();
+  const recIds = [...new Set(all.flatMap(it => it.refs.map(rf => rf.rid)))];
+  const recChips = recIds.length > 1
+    ? `<div class="frow"><span class="frow-lbl">Recipe</span>` +
+      `<button class="fchip ${panRecipeFilter === 'all' ? 'on' : ''}" onclick="setPanRecipeFilter('all')">All</button>` +
+      recIds.map(rid => { const r = state.recipes.find(x => x.id === rid);
+        return `<button class="fchip ${panRecipeFilter == rid ? 'on' : ''}" onclick="setPanRecipeFilter(${rid})">${esc(r ? r.name : '')}</button>`; }).join('') +
+      `</div>` : '';
+
+  let items = all;
+  if (panRecipeFilter !== 'all') items = items.filter(it => it.refs.some(rf => rf.rid == panRecipeFilter));
+  const catRow = catChipsRow(items);
+  let shown = items;
+  if (panCatFilter !== 'all') shown = shown.filter(it => it.cat === panCatFilter);
+
+  document.getElementById('pan-filters').innerHTML = recChips + catRow;
+
+  if (!shown.length) {
+    document.getElementById('pan-body').innerHTML = all.length
+      ? `<div class="pan-empty"><span class="pan-empty-ic">🧹</span>Nothing matches this filter.</div>`
+      : `<div class="pan-empty"><span class="pan-empty-ic">✅</span>Your shopping list is empty.<br>Mark ingredients as <b>In stock</b> in a recipe's checklist and only what's left to buy shows up here.</div>`;
+    return;
+  }
+  document.getElementById('pan-body').innerHTML = groupByCat(shown).map(grp => {
+    const rows = grp.items.map(it => {
+      const refs = panRecipeFilter === 'all' ? it.refs : it.refs.filter(rf => rf.rid == panRecipeFilter);
+      const chips = refs.map(rf =>
+        `<span class="for-chip">${esc(rf.recipe)}${rf.qty ? ` <span class="qn">· ${esc(rf.qty)}</span>` : ''}${rf.last ? ` <span class="qn">· running out</span>` : ''}</span>`).join('');
+      return `<div class="shop-item" onclick="shopGot('${it.key}')">
+        <div class="shop-tick"></div>
+        <div class="shop-main"><div class="shop-iname">${esc(it.name)}</div><div class="shop-for">${chips}</div></div>
+        <button class="cat-edit" onclick="event.stopPropagation();openCatPicker('${it.key}')">${grp.cat.emoji}</button>
+      </div>`;
+    }).join('');
+    return `<div class="pan-cat">${grp.cat.emoji} ${grp.cat.label}</div>${rows}`;
+  }).join('');
+}
+
+/* tap a shopping item = "got it": marks it In stock in every recipe that needed
+   it, so it drops off the list and shows up under What's there. */
+function shopGot(key) {
+  for (const r of state.recipes) {
+    const p = prog(r.id);
+    if (!p.stock) p.stock = {};
+    r.ings.forEach((g, i) => { if (normIng(g.n) === key && ingState(p, i) !== 'have') p.stock[i] = 'have'; });
+  }
+  saveState(); renderPantry();
+}
+
+function renderHaveTab() {
+  const all = buildHaveItems();
+  document.getElementById('pan-filters').innerHTML = catChipsRow(all);
+  let shown = all;
+  if (panCatFilter !== 'all') shown = shown.filter(it => it.cat === panCatFilter);
+
+  const addRow = `<div class="pan-add">
+    <input id="pan-add-in" type="text" placeholder="Add something you have…" autocomplete="off"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addPantryItem();}">
+    <button onclick="addPantryItem()">Add</button>
+  </div>`;
+
+  let body;
+  if (!all.length) {
+    body = `<div class="pan-empty"><span class="pan-empty-ic">🧺</span>Your pantry is empty.<br>Mark ingredients <b>In stock</b> in a recipe — or add them above.</div>`;
+  } else if (!shown.length) {
+    body = `<div class="pan-empty"><span class="pan-empty-ic">🧹</span>Nothing in this aisle.</div>`;
+  } else {
+    body = groupByCat(shown).map(grp => {
+      const rows = grp.items.map(it => `<div class="have-item">
+        <button class="cat-edit" onclick="openCatPicker('${it.key}')">${grp.cat.emoji}</button>
+        <div class="have-name">${esc(it.name)}${it.manual ? '' : '<span class="have-src">from a recipe</span>'}</div>
+        <button class="have-del" onclick="removeHave('${it.key}')" aria-label="Remove">✕</button>
+      </div>`).join('');
+      return `<div class="pan-cat">${grp.cat.emoji} ${grp.cat.label}</div>${rows}`;
+    }).join('');
+  }
+  document.getElementById('pan-body').innerHTML = addRow + body;
+}
+
+function addPantryItem() {
+  const el = document.getElementById('pan-add-in'); if (!el) return;
+  const v = (el.value || '').trim(); if (!v) return;
+  const key = normIng(v);
+  if (key) { if (!state.pantry) state.pantry = {}; state.pantry[key] = { name: v, cat: catFor(v) }; }
+  el.value = '';
+  saveState(); renderPantry();
+  const ne = document.getElementById('pan-add-in'); if (ne) ne.focus();
+}
+
+/* remove from pantry: drop a manual entry, and set any 'have' recipe ings for
+   this item back to 'need' (you've run out / don't want it counted). */
+function removeHave(key) {
+  if (state.pantry) delete state.pantry[key];
+  for (const r of state.recipes) {
+    const p = state.progress[r.id]; if (!p || !p.stock) continue;
+    r.ings.forEach((g, i) => { if (normIng(g.n) === key && p.stock[i] === 'have') delete p.stock[i]; });
+  }
+  saveState(); renderPantry();
+}
+
+function openCatPicker(key) {
+  catPickKey = key;
+  let curCat = (state.catOverride || {})[key], name = key;
+  const man = state.pantry && state.pantry[key];
+  if (man) { name = man.name; if (!curCat) curCat = man.cat || catFor(man.name); }
+  for (const r of state.recipes) { for (const g of r.ings) { if (normIng(g.n) === key) { name = g.n; if (!curCat) curCat = catOf(g); break; } } }
+  document.getElementById('cat-meta').textContent = 'Sort "' + name + '" into the right aisle — this applies everywhere.';
+  document.getElementById('cat-grid').innerHTML = CATEGORIES.map(c =>
+    `<button class="cat-opt ${c.id === curCat ? 'on' : ''}" onclick="pickCat('${c.id}')">${c.emoji} ${esc(c.label)}</button>`).join('');
+  openOverlay('cat-overlay');
+}
+function pickCat(cid) {
+  if (catPickKey) {
+    if (!state.catOverride) state.catOverride = {};
+    state.catOverride[catPickKey] = cid;
+    if (state.pantry && state.pantry[catPickKey]) state.pantry[catPickKey].cat = cid;
+    saveState();
+  }
+  closeCatPicker(); renderPantry();
+}
+function closeCatPicker() { catPickKey = null; closeOverlay('cat-overlay'); }
 
 /* ═══════════════ OVERLAY HELPERS ═══════════════ */
 function openOverlay(id) {

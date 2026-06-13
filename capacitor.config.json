@@ -10,7 +10,7 @@
       "iconColor": "#E8712A"
     },
     "CapacitorHttp": {
-      "enabled": true
+      "enabled": false
     },
     "CapacitorUpdater": {
       "autoUpdate": false,

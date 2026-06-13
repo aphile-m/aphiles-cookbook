@@ -1,0 +1,145 @@
+name: Release
+
+# Cuts a release from the cloud, so no local Android toolchain is needed.
+# Trigger from the GitHub mobile app (Actions -> Run workflow) or have Claude
+# trigger it. Publishes a Release whose /releases/latest/download/ URLs the
+# in-app updater already points at.
+#
+# Two modes:
+#   web-only (default): zips www/ as the OTA bundle and CARRIES THE CURRENT APK
+#     FORWARD unchanged. No Android build. Use for web/recipe-app fixes. Safe
+#     even when the repo's android/ source isn't byte-for-byte production.
+#   full: rebuilds the debug APK from android/. ONLY use once the repo's native
+#     source is confirmed to match production (e.g. pushed from the dev PC),
+#     otherwise the rebuilt APK can regress native behaviour.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "web-only (OTA web update, reuse current APK) or full (rebuild APK)"
+        type: choice
+        options: [web-only, full]
+        default: web-only
+      notes:
+        description: "Release notes (what changed in this version)"
+        required: false
+        default: "Maintenance update."
+      web_requires_native:
+        description: "Minimum native build this web bundle needs (usually current)."
+        required: false
+        default: "2"
+
+permissions:
+  contents: write   # create tags/releases with the built-in GITHUB_TOKEN
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read web version from index.html
+        id: ver
+        run: |
+          set -euo pipefail
+          WEB=$(grep -oP "APP_WEB_VERSION\s*=\s*['\"]?\K[0-9.]+" www/index.html | head -1)
+          [ -n "$WEB" ] || { echo "::error::could not read APP_WEB_VERSION"; exit 1; }
+          echo "web=$WEB" >> "$GITHUB_OUTPUT"
+
+      - name: Zip web bundle (www contents at zip root)
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          (cd www && zip -qr ../release/www-bundle.zip .)
+
+      # ---------- web-only: carry the current APK + native build forward ----------
+      - name: Carry current APK forward
+        if: ${{ inputs.mode == 'web-only' }}
+        id: carry
+        run: |
+          set -euo pipefail
+          PREV=$(gh release view --json tagName -q .tagName)
+          echo "Carrying APK + native build forward from latest release: $PREV"
+          gh release download "$PREV" -p "Aphiles-Cookbook.apk" -D release
+          gh release download "$PREV" -p "version.json" -O prev.json
+          echo "native=$(jq -r '.native' prev.json)" >> "$GITHUB_OUTPUT"
+
+      # ---------- full: rebuild the APK from android/ ----------
+      - name: Set up Node
+        if: ${{ inputs.mode == 'full' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Set up JDK 21
+        if: ${{ inputs.mode == 'full' }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Set up Android SDK
+        if: ${{ inputs.mode == 'full' }}
+        uses: android-actions/setup-android@v3
+      - name: Build debug APK
+        if: ${{ inputs.mode == 'full' }}
+        id: build
+        run: |
+          set -euo pipefail
+          npm ci
+          npx cap sync android
+          cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../release/Aphiles-Cookbook.apk
+          echo "native=$(grep -oP 'versionCode\s+\K[0-9]+' app/build.gradle | head -1)" >> "$GITHUB_OUTPUT"
+
+      - name: Write version.json
+        id: manifest
+        env:
+          NOTES: ${{ inputs.notes }}
+          REQ: ${{ inputs.web_requires_native }}
+        run: |
+          set -euo pipefail
+          WEB="${{ steps.ver.outputs.web }}"
+          NATIVE="${{ steps.carry.outputs.native }}${{ steps.build.outputs.native }}"
+          [ -n "$NATIVE" ] || { echo "::error::no native version resolved"; exit 1; }
+          BASE="https://github.com/${{ github.repository }}/releases/latest/download"
+          jq -n \
+            --arg web "$WEB" \
+            --argjson native "$NATIVE" \
+            --argjson req "${REQ:-$NATIVE}" \
+            --arg apk "$BASE/Aphiles-Cookbook.apk" \
+            --arg bundle "$BASE/www-bundle.zip" \
+            --arg notes "$NOTES" \
+            '{web:$web, native:$native, webRequiresNative:$req, apkUrl:$apk, bundleUrl:$bundle, notes:$notes}' \
+            > release/version.json
+          echo "--- version.json ---"; cat release/version.json
+          echo "native=$NATIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          NOTES: ${{ inputs.notes }}
+        run: |
+          set -euo pipefail
+          TAG="v${{ steps.ver.outputs.web }}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "$NOTES" \
+            --latest \
+            release/Aphiles-Cookbook.apk release/www-bundle.zip release/version.json
+
+      - name: Summary
+        run: |
+          {
+            echo "### Released v${{ steps.ver.outputs.web }} (${{ inputs.mode }}) :rocket:"
+            echo ""
+            echo "- web version: \`${{ steps.ver.outputs.web }}\`"
+            echo "- native build: \`${{ steps.manifest.outputs.native }}\`"
+            echo "- Update URL: https://github.com/${{ github.repository }}/releases/latest/download/version.json"
+            echo ""
+            echo "On the phone: open the app -> it sees the new version -> tap the update bar."
+          } >> "$GITHUB_STEP_SUMMARY"

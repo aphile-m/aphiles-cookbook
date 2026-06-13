@@ -782,6 +782,29 @@ function isNative() {
 function LN() {
   return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.LocalNotifications : null;
 }
+function CapHttp() {
+  return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.CapacitorHttp : null;
+}
+/* CORS-bypassing GET. Used ONLY for requests that browsers block cross-origin —
+   the recipe-link page fetch and the GitHub release version.json. On a device we
+   route these through CapacitorHttp.request() explicitly; in a browser we fall
+   back to a normal fetch. The global CapacitorHttp fetch-patch is OFF (it was
+   breaking the Anthropic call), so everything else — including the AI request —
+   uses the normal WebView fetch, which Anthropic allows via the
+   anthropic-dangerous-direct-browser-access header. */
+async function corsGetText(url, headers) {
+  const CH = CapHttp();
+  if (isNative() && CH) {
+    const r = await CH.request({ url, method: 'GET', headers: headers || {}, connectTimeout: 20000, readTimeout: 30000 });
+    if (typeof r.status === 'number' && (r.status < 200 || r.status >= 300)) {
+      const e = new Error('HTTP ' + r.status); e.status = r.status; throw e;
+    }
+    return typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+  }
+  const res = await fetch(url, { headers: headers || {}, cache: 'no-store' });
+  if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+  return await res.text();
+}
 let channelReady = false;
 async function ensureNotifReady() {
   if (isNative() && LN()) {
@@ -830,7 +853,7 @@ function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
 }
 function loadState() {
-  try { apiKey = localStorage.getItem(KEY_STORE) || ''; } catch (e) {}
+  try { apiKey = cleanApiKey(localStorage.getItem(KEY_STORE) || ''); } catch (e) {}
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
@@ -1445,7 +1468,7 @@ function openSettings() {
 }
 function closeSettings() { closeOverlay('set-overlay'); }
 function saveApiKey() {
-  apiKey = document.getElementById('api-key-input').value.trim();
+  apiKey = cleanApiKey(document.getElementById('api-key-input').value);
   try { localStorage.setItem(KEY_STORE, apiKey); } catch (e) {}
   document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'Key cleared';
   document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
@@ -1478,6 +1501,11 @@ function renderAddSheet(mode) {
         <span><span class="add-opt-t">Paste text</span>
         <div class="add-opt-d">Copy a recipe from anywhere and paste it here${apiKey ? '' : ' — needs an API key (⚙️)'}</div></span>
       </button>
+      <button class="add-opt" onclick="renderAddSheet('describe')">
+        <span class="add-opt-ico">✨</span>
+        <span><span class="add-opt-t">Describe a meal</span>
+        <div class="add-opt-d">No recipe? Describe the dish and let AI invent one${apiKey ? '' : ' — needs an API key (⚙️)'}</div></span>
+      </button>
       <div class="add-note">Tip: you can also share a link or a photo directly to <b>Aphile's Cookbook</b> from any other app.</div>`;
   } else if (mode === 'link') {
     body.innerHTML = `
@@ -1496,6 +1524,15 @@ function renderAddSheet(mode) {
         <div class="add-note">Pasted text is structured by AI — an API key is required (⚙️ on the home screen).</div>
       </div>
       <button class="skip-link" onclick="renderAddSheet('menu')">‹ Back</button>`;
+  } else if (mode === 'describe') {
+    body.innerHTML = `
+      <div class="add-input-wrap">
+        <textarea class="add-textarea" id="desc-input" placeholder="Describe the meal — e.g. 'a mild butter chicken for 4, not too spicy, with basmati rice' or 'quick vegetarian lentil soup'"></textarea>
+        <button class="btn-primary add-go" style="padding:13px" onclick="goDescribeImport()">✨ Generate recipe</button>
+        <div class="add-note">AI invents a full recipe from your description — an API key is required (⚙️ on the home screen). You'll see the whole recipe to check before saving.</div>
+      </div>
+      <button class="skip-link" onclick="renderAddSheet('menu')">‹ Back</button>`;
+    setTimeout(() => { const el = document.getElementById('desc-input'); if (el) el.focus(); }, 350);
   }
 }
 
@@ -1743,29 +1780,73 @@ Rules:
 - If the source is a photo, read it carefully including handwriting. If parts are unreadable, make the sensible choice and note it in the relevant step's tip.
 - If the source contains no recipe at all, still return the schema but with an empty ings array.`;
 
-async function claudeExtract(contentBlocks) {
+const GENERATE_SYSTEM = `You invent complete, authentic, practical recipes from a short description, formatted as structured JSON for a step-by-step cooking companion app.
+Rules:
+- Create a realistic, genuinely cookable recipe that matches the description — cuisine, servings, dietary needs, spice level, time, and any other constraints the user gives. If servings aren't stated, default to 4 and set base to match.
+- Use real, sensible ingredient quantities. a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for "to taste" items and put the full phrasing in n.
+- Group the method into 4-10 clear steps a home cook can follow on a phone while cooking. Every step that involves waiting or timed cooking gets a timer in seconds; quick prep steps get null. focus lists the ingredients used in that step.
+- Keep it makeable by a home cook with normal equipment unless the description asks otherwise. Honour explicit constraints (vegetarian, no nuts, mild, quick, etc.).
+- If the description is vague, make reasonable, common-sense choices rather than refusing.`;
+
+// Strip invisible/zero-width characters and surrounding whitespace from a
+// pasted API key. Keys are ASCII-only, so any non-ASCII byte is junk picked
+// up on copy/paste (e.g. a non-breaking space or zero-width char) and would
+// otherwise make fetch() throw "String contains non ISO-8859-1 code point"
+// (the raw WebView fetch path enforces Latin-1 headers).
+function cleanApiKey(s) {
+  return String(s || '')
+    .replace(/[^\x20-\x7E]/g, '') // drop anything outside printable ASCII (nbsp, zero-width chars, smart quotes, etc.)
+    .trim();
+}
+
+// Coerce a header value to Latin-1 (ISO-8859-1). fetch() rejects header
+// strings containing code points > 255, which happens when our app name or a
+// pasted value carries smart punctuation (e.g. the curly apostrophe in
+// "Aphile's Cookbook") or an emoji. Map common smart punctuation to ASCII and
+// drop anything still out of range.
+function toLatin1(s) {
+  return String(s)
+    .replace(/[‘’‚‛]/g, "'")  // curly single quotes / apostrophes
+    .replace(/[“”„‟]/g, '"')  // curly double quotes
+    .replace(/[–—]/g, '-')              // en / em dash
+    .replace(/…/g, '...')                     // ellipsis
+    .replace(/[^\x00-\xFF]/g, '');                 // drop remaining non-Latin1 (e.g. emoji)
+}
+
+// Sanitize every value in a headers object to Latin-1 before handing it to fetch().
+function latin1Headers(h) {
+  const out = {};
+  for (const k in h) out[k] = toLatin1(h[k]);
+  return out;
+}
+
+async function claudeExtract(contentBlocks, systemPrompt) {
   if (!apiKey) throw new Error('This import needs AI. Add your Anthropic API key first — tap ⚙️ on the home screen.');
   let res;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
+      headers: latin1Headers({
         'content-type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': cleanApiKey(apiKey),
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      }),
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 16000,
         thinking: { type: 'adaptive' },
-        system: EXTRACT_SYSTEM,
+        system: systemPrompt || EXTRACT_SYSTEM,
         output_config: { format: { type: 'json_schema', schema: RECIPE_SCHEMA } },
         messages: [{ role: 'user', content: contentBlocks }],
       }),
     });
   } catch (e) {
-    throw new Error('Could not reach the AI service. Check your internet connection.');
+    // Temporary diagnostic: surface the real underlying error instead of a generic
+    // message, so an on-device failure tells us exactly what threw.
+    try { console.error('[claudeExtract] fetch threw:', e); } catch (_) {}
+    const detail = (e && (e.message || e.name)) ? (e.message || e.name) : String(e);
+    throw new Error('Could not reach the AI service — ' + detail + '. (If this persists, screenshot this and check your connection / API key.)');
   }
   if (!res.ok) {
     let detail = '';
@@ -1862,9 +1943,7 @@ async function startLinkImport(url) {
   importBusy('Fetching the page…');
   let html;
   try {
-    const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    html = await res.text();
+    html = await corsGetText(url, { 'Accept': 'text/html' });
   } catch (e) {
     importError(isNative()
       ? 'Could not load that page (' + (e.message || 'network error') + '). Try copying the recipe text and using "Paste text" instead.'
@@ -1911,6 +1990,24 @@ async function startTextImport(text) {
   } catch (e) { importError(e.message || 'Something went wrong.'); }
 }
 
+/* ── AI-generate a recipe from a description ── */
+function goDescribeImport() {
+  const text = (document.getElementById('desc-input').value || '').trim();
+  if (!text) return;
+  startDescribeImport(text);
+}
+async function startDescribeImport(text) {
+  if (!apiKey) { closeAddSheet(); importError('Generating a recipe needs an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  importBusy('Inventing your recipe with AI…');
+  try {
+    const raw = await claudeExtract(
+      [{ type: 'text', text: 'Create a recipe for this: ' + text.slice(0, 2000) }],
+      GENERATE_SYSTEM,
+    );
+    showPreview(normalizeRecipe(raw, 'AI-generated'));
+  } catch (e) { importError(e.message || 'Something went wrong.'); }
+}
+
 /* ═══════════════ ANDROID SHARE TARGET ═══════════════ */
 window.addEventListener('shared-text', e => {
   const text = String((e && e.detail) || '').trim();
@@ -1938,13 +2035,18 @@ document.addEventListener('keydown', e => {
 
 /* ═══════════════ APP UPDATES ═══════════════ */
 /* APP_WEB_VERSION = the web bundle's own version. Bump on every www/index.html
-   release. An OTA update simply ships a new index.html whose constant is higher,
-   so the running code's constant is always authoritative for "which web version
-   am I". The APK's native build (versionCode) is read separately via App.getInfo,
-   because OTA can't change native code. */
-const APP_WEB_VERSION = 1;
+   release. Supports dotted sub-versions for minor fixes: a major release is a
+   whole number ("4", "5"), and a minor fix increments the part after the dot
+   ("4.1", "4.2"). Versions are compared segment-by-segment, numerically, so
+   "4.10" is correctly newer than "4.2". Write sub-versions as a quoted string
+   ('4.1'); a whole number may stay bare (4). An OTA update simply ships a new
+   index.html whose constant is higher, so the running code's constant is always
+   authoritative for "which web version am I". The APK's native build
+   (versionCode) is read separately via App.getInfo, because OTA can't change
+   native code. */
+const APP_WEB_VERSION = 4;
 const UPDATE_URL_KEY = 'cookbook_update_url';
-const DEFAULT_MANIFEST = ''; // set per-device in Settings → Update source
+const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 
 let updateInfo = null;        // current available update (or null)
 let updateBusy = false;
@@ -1979,18 +2081,33 @@ async function readNativeBuild() {
   return nativeBuild;
 }
 
+/* Compare two dotted web versions ("4", "4.1", "4.10") numerically, segment by
+   segment. Returns >0 if a is newer than b, <0 if older, 0 if equal. A missing
+   segment counts as 0, so "4" === "4.0" and "4.1" > "4". Tolerates numbers,
+   strings, null, or blank (all coerced; absent/blank == 0). */
+function cmpVer(a, b) {
+  const pa = String(a == null ? '' : a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b == null ? '' : b).split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
 /* Pure, testable decision: given the remote manifest, what (if anything) to do.
    manifest = { web, native, webRequiresNative, apkUrl, bundleUrl, notes } */
 function decideUpdate(manifest, currentWeb, installedNative) {
   if (!manifest || typeof manifest !== 'object') return { type: 'none' };
-  const remoteWeb    = parseInt(manifest.web, 10) || 0;
+  const remoteWeb    = String(manifest.web == null ? '' : manifest.web);
   const remoteNative = parseInt(manifest.native, 10) || 0;
   const reqNative    = parseInt(manifest.webRequiresNative, 10) || 0;
   const base = { notes: String(manifest.notes || ''), apkUrl: String(manifest.apkUrl || ''), bundleUrl: String(manifest.bundleUrl || ''), web: remoteWeb };
   // A newer native build can only arrive as a full APK.
   if (installedNative != null && remoteNative > installedNative) return Object.assign({ type: 'apk' }, base);
   // A newer web bundle: seamless OTA, unless it needs a newer APK than installed.
-  if (remoteWeb > currentWeb) {
+  if (cmpVer(remoteWeb, currentWeb) > 0) {
     if (installedNative != null && reqNative > installedNative) return Object.assign({ type: 'apk' }, base);
     return Object.assign({ type: 'ota' }, base);
   }
@@ -2003,9 +2120,7 @@ async function checkForUpdates(manual) {
   if (manual) updateStatus('Checking…');
   let manifest;
   try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    manifest = await res.json();
+    manifest = JSON.parse(await corsGetText(url));
   } catch (e) {
     if (manual) updateStatus('Could not check for updates (' + (e.message || 'offline') + ').', 'var(--dim)');
     return;

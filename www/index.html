@@ -830,7 +830,7 @@ function saveState() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
 }
 function loadState() {
-  try { apiKey = localStorage.getItem(KEY_STORE) || ''; } catch (e) {}
+  try { apiKey = cleanApiKey(localStorage.getItem(KEY_STORE) || ''); } catch (e) {}
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
@@ -1445,7 +1445,7 @@ function openSettings() {
 }
 function closeSettings() { closeOverlay('set-overlay'); }
 function saveApiKey() {
-  apiKey = document.getElementById('api-key-input').value.trim();
+  apiKey = cleanApiKey(document.getElementById('api-key-input').value);
   try { localStorage.setItem(KEY_STORE, apiKey); } catch (e) {}
   document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'Key cleared';
   document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
@@ -1743,18 +1743,49 @@ Rules:
 - If the source is a photo, read it carefully including handwriting. If parts are unreadable, make the sensible choice and note it in the relevant step's tip.
 - If the source contains no recipe at all, still return the schema but with an empty ings array.`;
 
+// Strip invisible/zero-width characters and surrounding whitespace from a
+// pasted API key. Keys are ASCII-only, so any non-ASCII byte is junk picked
+// up on copy/paste (e.g. a non-breaking space or zero-width char) and would
+// otherwise make fetch() throw "String contains non ISO-8859-1 code point".
+function cleanApiKey(s) {
+  return String(s || '')
+    .replace(/[^\x20-\x7E]/g, "") // drop anything outside printable ASCII (nbsp, zero-width chars, smart quotes, etc.)
+    .trim();
+}
+
+// Coerce a header value to Latin-1 (ISO-8859-1). fetch() rejects header
+// strings containing code points > 255, which happens when our app name or a
+// pasted value carries smart punctuation (e.g. the curly apostrophe in
+// "Aphile's Cookbook") or an emoji. Map common smart punctuation to ASCII and
+// drop anything still out of range.
+function toLatin1(s) {
+  return String(s)
+    .replace(/[‘’‚‛]/g, "'")  // curly single quotes / apostrophes
+    .replace(/[“”„‟]/g, '"')  // curly double quotes
+    .replace(/[–—]/g, '-')              // en / em dash
+    .replace(/…/g, '...')                     // ellipsis
+    .replace(/[^\x00-\xFF]/g, '');                 // drop remaining non-Latin1 (e.g. emoji)
+}
+
+// Sanitize every value in a headers object to Latin-1 before handing it to fetch().
+function latin1Headers(h) {
+  const out = {};
+  for (const k in h) out[k] = toLatin1(h[k]);
+  return out;
+}
+
 async function claudeExtract(contentBlocks) {
   if (!apiKey) throw new Error('This import needs AI. Add your Anthropic API key first — tap ⚙️ on the home screen.');
   let res;
   try {
     res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
+      headers: latin1Headers({
         'content-type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': cleanApiKey(apiKey),
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      }),
       body: JSON.stringify({
         model: 'claude-opus-4-8',
         max_tokens: 16000,

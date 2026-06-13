@@ -32,7 +32,7 @@ Compress-Archive -Path (Join-Path $proj 'www\*') -DestinationPath $zip
 
 # Pull the current web/native versions straight from the source of truth.
 $indexPath = Join-Path $proj 'www\index.html'
-$webVer = ([regex]::Match((Get-Content $indexPath -Raw), 'APP_WEB_VERSION\s*=\s*(\d+)')).Groups[1].Value
+$webVer = ([regex]::Match((Get-Content $indexPath -Raw), 'APP_WEB_VERSION\s*=\s*[''"]?([\d.]+)')).Groups[1].Value
 $nativeVer = ([regex]::Match((Get-Content (Join-Path $proj 'android\app\build.gradle') -Raw), 'versionCode\s+(\d+)')).Groups[1].Value
 
 Write-Host ''
@@ -42,7 +42,7 @@ Write-Host ''
 Write-Host 'Now create/replace a GitHub release and upload BOTH files above plus this version.json:' -ForegroundColor Yellow
 @"
 {
-  "web": $webVer,
+  "web": "$webVer",
   "native": $nativeVer,
   "webRequiresNative": 1,
   "apkUrl": "https://github.com/USER/REPO/releases/latest/download/Aphiles-Cookbook.apk",

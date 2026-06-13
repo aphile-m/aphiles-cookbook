@@ -1969,10 +1969,15 @@ document.addEventListener('keydown', e => {
 
 /* ═══════════════ APP UPDATES ═══════════════ */
 /* APP_WEB_VERSION = the web bundle's own version. Bump on every www/index.html
-   release. An OTA update simply ships a new index.html whose constant is higher,
-   so the running code's constant is always authoritative for "which web version
-   am I". The APK's native build (versionCode) is read separately via App.getInfo,
-   because OTA can't change native code. */
+   release. Supports dotted sub-versions for minor fixes: a major release is a
+   whole number ("2", "3"), and a minor fix increments the part after the dot
+   ("2.1", "2.2"). Versions are compared segment-by-segment, numerically, so
+   "2.10" is correctly newer than "2.2". Write sub-versions as a quoted string
+   ('2.1'); a whole number may stay bare (2). An OTA update simply ships a new
+   index.html whose constant is higher, so the running code's constant is always
+   authoritative for "which web version am I". The APK's native build
+   (versionCode) is read separately via App.getInfo, because OTA can't change
+   native code. */
 const APP_WEB_VERSION = 2;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = ''; // set per-device in Settings → Update source
@@ -2010,18 +2015,33 @@ async function readNativeBuild() {
   return nativeBuild;
 }
 
+/* Compare two dotted web versions ("2", "2.1", "2.10") numerically, segment by
+   segment. Returns >0 if a is newer than b, <0 if older, 0 if equal. A missing
+   segment counts as 0, so "2" === "2.0" and "2.1" > "2". Tolerates numbers,
+   strings, null, or blank (all coerced; absent/blank == 0). */
+function cmpVer(a, b) {
+  const pa = String(a == null ? '' : a).split('.').map(n => parseInt(n, 10) || 0);
+  const pb = String(b == null ? '' : b).split('.').map(n => parseInt(n, 10) || 0);
+  const len = Math.max(pa.length, pb.length);
+  for (let i = 0; i < len; i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d !== 0) return d < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
 /* Pure, testable decision: given the remote manifest, what (if anything) to do.
    manifest = { web, native, webRequiresNative, apkUrl, bundleUrl, notes } */
 function decideUpdate(manifest, currentWeb, installedNative) {
   if (!manifest || typeof manifest !== 'object') return { type: 'none' };
-  const remoteWeb    = parseInt(manifest.web, 10) || 0;
+  const remoteWeb    = String(manifest.web == null ? '' : manifest.web);
   const remoteNative = parseInt(manifest.native, 10) || 0;
   const reqNative    = parseInt(manifest.webRequiresNative, 10) || 0;
   const base = { notes: String(manifest.notes || ''), apkUrl: String(manifest.apkUrl || ''), bundleUrl: String(manifest.bundleUrl || ''), web: remoteWeb };
   // A newer native build can only arrive as a full APK.
   if (installedNative != null && remoteNative > installedNative) return Object.assign({ type: 'apk' }, base);
   // A newer web bundle: seamless OTA, unless it needs a newer APK than installed.
-  if (remoteWeb > currentWeb) {
+  if (cmpVer(remoteWeb, currentWeb) > 0) {
     if (installedNative != null && reqNative > installedNative) return Object.assign({ type: 'apk' }, base);
     return Object.assign({ type: 'ota' }, base);
   }

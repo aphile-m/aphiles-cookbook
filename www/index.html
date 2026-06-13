@@ -202,6 +202,18 @@
     .ing-qty { font-size: 12px; font-weight: 600; color: var(--ember); letter-spacing: .02em; }
     .ing-name { font-size: 15px; line-height: 1.35; transition: color .2s; }
     .ing-item.checked .ing-name { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--dim); }
+    /* tri-state: "used the last" — have it for this cook but now out of stock */
+    .ing-item.using-last { background: rgba(232,113,42,.10); border-color: rgba(232,113,42,.28); }
+    .ing-item.using-last .ing-chk { background: var(--ember); border-color: var(--ember); color: #fff; }
+    .ing-item.using-last .ing-name { color: var(--muted); }
+    .ing-state {
+      font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; flex-shrink: 0; white-space: nowrap;
+    }
+    .st-need { color: var(--dim); border: 1px solid var(--border); }
+    .st-have { color: var(--green); background: var(--green-glow); }
+    .st-last { color: var(--ember); background: rgba(232,113,42,.14); }
+    .ing-cat { opacity: .85; margin-right: 2px; }
 
     .ing-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
 
@@ -750,7 +762,8 @@ let state = {
   recipes: [JSON.parse(JSON.stringify(POTJIE))],
   nextId: 2,
   active: null,          // recipe id currently open
-  progress: {},          // progress[id] = {checked, checkedTools, servings, step, phase, timers}
+  progress: {},          // progress[id] = {stock, checkedTools, servings, step, phase, timers}
+  catOverride: {},       // catOverride[normIngName] = categoryId — manual, global category fixes
 };
 let apiKey = '';
 let going = false;
@@ -770,9 +783,87 @@ function prog(rid) {
   rid = rid == null ? state.active : rid;
   if (!state.progress[rid]) {
     const r = state.recipes.find(x => x.id === rid);
-    state.progress[rid] = { checked: [], checkedTools: [], servings: (r ? r.base : 4), step: 0, phase: null, timers: {} };
+    state.progress[rid] = { stock: {}, checkedTools: [], servings: (r ? r.base : 4), step: 0, phase: null, timers: {} };
   }
   return state.progress[rid];
+}
+
+/* ═══════════════ INGREDIENTS: NORMALISE + CATEGORISE ═══════════════ */
+/* Aisle/shop categories for the shopping list & pantry. Array order = the order
+   they appear in the grouped shopping list (rough supermarket walk order). */
+const CATEGORIES = [
+  { id: 'produce',  label: 'Fruit & Veg',     emoji: '🥬' },
+  { id: 'butchery', label: 'Butchery',        emoji: '🥩' },
+  { id: 'seafood',  label: 'Fish & Seafood',  emoji: '🐟' },
+  { id: 'dairy',    label: 'Dairy & Eggs',    emoji: '🧀' },
+  { id: 'bakery',   label: 'Bakery',          emoji: '🥖' },
+  { id: 'pantry',   label: 'Pantry & Tins',   emoji: '🥫' },
+  { id: 'spices',   label: 'Spices & Sauces', emoji: '🧂' },
+  { id: 'frozen',   label: 'Frozen',          emoji: '🧊' },
+  { id: 'drinks',   label: 'Drinks',          emoji: '🍷' },
+  { id: 'other',    label: 'Other',           emoji: '🛒' },
+];
+const CAT_BY_ID = Object.fromEntries(CATEGORIES.map(c => [c.id, c]));
+
+/* Normalise an ingredient name to a stable key for matching the same item
+   across recipes and the pantry: lowercase, drop prep notes after a comma,
+   drop parentheticals, strip punctuation, collapse spaces.
+   "Onion, finely chopped" -> "onion". */
+function normIng(name) {
+  return String(name || '')
+    .toLowerCase()
+    .split(',')[0]
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* Keyword -> category, first match wins. Order matters: tinned goods and
+   stock/sauces are checked before meat/produce so "canned tomatoes" and "beef
+   stock cube" don't get mis-filed as produce/butchery. Deliberately rough —
+   anything wrong can be fixed once via the manual override. */
+const CAT_RULES = [
+  ['pantry',   ['tin','tinned','canned','can of','jar','packet','sachet']],
+  ['spices',   ['stock','bouillon','masala','curry powder','spice','cumin','paprika','cinnamon','turmeric','chilli powder','sauce','chutney','vinegar','mustard','ketchup','mayo','seasoning','bay leaf','oregano','nutmeg','clove','puree','paste']],
+  ['seafood',  ['fish','salmon','tuna','prawn','shrimp','squid','calamari','mussel','hake','cod','anchovy','anchovies','sardine']],
+  ['butchery', ['oxtail','beef','steak','mince','chicken','pork','lamb','mutton','bacon','sausage','boerewors','ham','chop','rib','brisket','knuckle','liver','meat']],
+  ['produce',  ['onion','garlic','carrot','potato','tomato','pepper','chilli','chili','spinach','lettuce','cabbage','broccoli','cauliflower','mushroom','ginger','lemon','lime','apple','banana','herb','thyme','parsley','coriander','basil','rosemary','celery','cucumber','avocado','corn','pea','leek','pumpkin','butternut','fruit','veg']],
+  ['dairy',    ['milk','butter','cheese','cream','yoghurt','yogurt','egg','mozzarella','parmesan','feta','custard']],
+  ['bakery',   ['bread','roll','bun','baguette','tortilla','wrap','pita','croissant','cake','pastry']],
+  ['frozen',   ['frozen','ice cream']],
+  ['drinks',   ['wine','beer','cider','vodka','rum','whisky','brandy','juice','soda','cola','sherry','port']],
+  ['pantry',   ['flour','sugar','rice','pasta','noodle','oil','lentil','chickpea','bean','coconut','oats','honey','syrup','cocoa','chocolate','baking','yeast','cornflour','maizena','samp','mealie','pap','salt','water']],
+].map(([cat, words]) => [cat, new RegExp('\\b(?:' + words.join('|') + ')(?:es|s)?\\b')]); // tolerate plurals (carrots, potatoes, eggs)
+function catFor(name) {
+  const s = ' ' + normIng(name) + ' ';
+  for (const [cat, re] of CAT_RULES) if (re.test(s)) return cat;
+  return 'other';
+}
+/* Resolve an ingredient's category: manual override (global, by name) beats an
+   AI-assigned `c`, beats the keyword guess. */
+function catOf(g) {
+  const key = normIng(g.n);
+  if (state.catOverride && state.catOverride[key] && CAT_BY_ID[state.catOverride[key]]) return state.catOverride[key];
+  if (g.c && CAT_BY_ID[g.c]) return g.c;
+  return catFor(g.n);
+}
+
+/* ═══════════════ CHECKLIST STATE (tri-state per ingredient) ═══════════════ */
+/* 'need'  — don't have it, buy it (default; not in the pantry)
+   'have'  — in stock, plenty left
+   'last'  — have it for this cook but using the last of it (now out of stock) */
+function ingState(p, i) {
+  const s = p && p.stock ? p.stock[i] : null;
+  return (s === 'have' || s === 'last') ? s : 'need';
+}
+function hasIng(p, i) { return ingState(p, i) !== 'need'; } // counts as ready-to-cook
+function cycleIng(i) {
+  const p = prog();
+  if (!p.stock) p.stock = {};
+  const next = { need: 'have', have: 'last', last: 'need' }[ingState(p, i)];
+  if (next === 'need') delete p.stock[i]; else p.stock[i] = next;
+  renderList(); saveState();
 }
 
 /* ═══════════════ NATIVE BRIDGE (Capacitor) ═══════════════ */
@@ -859,6 +950,16 @@ function loadState() {
     if (raw) {
       const s = JSON.parse(raw);
       if (s && Array.isArray(s.recipes) && s.recipes.length) state = s;
+      if (!state.catOverride) state.catOverride = {};
+      // migrate old binary checklist (checked:[indices]) to tri-state stock map
+      for (const rid in state.progress) {
+        const pr = state.progress[rid];
+        if (!pr.stock) {
+          pr.stock = {};
+          if (Array.isArray(pr.checked)) for (const i of pr.checked) pr.stock[i] = 'have';
+        }
+        delete pr.checked;
+      }
       // keep the built-in recipe's naming in sync with the current app version
       const bi = state.recipes.find(r => r.builtin);
       if (bi) { bi.name = POTJIE.name; bi.subtitle = POTJIE.subtitle; bi.emoji = POTJIE.emoji; }
@@ -994,10 +1095,18 @@ function adjSrv(d) {
 }
 
 /* ═══════════════ CHECKLIST ═══════════════ */
+/* Tap an ingredient to cycle Need -> In stock -> Used the last. Both "have"
+   states count as ready-to-cook; only "Need" items go on the shopping list. */
+const ING_STATE_UI = {
+  need: { cls: '',           glyph: '',  tag: 'st-need', label: 'To buy' },
+  have: { cls: 'checked',    glyph: '✓', tag: 'st-have', label: 'In stock' },
+  last: { cls: 'using-last', glyph: '◐', tag: 'st-last', label: 'Used the last' },
+};
 function renderList() {
   const r = cur(), p = prog();
   const tI = r.ings.length, tT = r.tools.length;
-  const n = p.checked.length + p.checkedTools.length, total = tI + tT;
+  const haveI = r.ings.reduce((acc, _, i) => acc + (hasIng(p, i) ? 1 : 0), 0);
+  const n = haveI + p.checkedTools.length, total = tI + tT;
 
   document.getElementById('ing-frac').textContent = `${n} / ${total}`;
   document.getElementById('ing-bar').style.width  = total ? `${(n / total) * 100}%` : '0';
@@ -1011,29 +1120,29 @@ function renderList() {
       <div class="ing-info"><div class="ing-qty">${esc(t.note)}</div><div class="ing-name">${esc(t.name)}</div></div>
     </div>`).join('');
 
-  const iRows = r.ings.map((g, i) => `
-    <div class="ing-item ${p.checked.includes(i) ? 'checked' : ''}" onclick="togIng(${i})">
-      <div class="ing-chk">${p.checked.includes(i) ? '✓' : ''}</div>
-      <div class="ing-info"><div class="ing-qty">${qty(g)}</div><div class="ing-name">${esc(g.n)}</div></div>
-    </div>`).join('');
+  const iRows = r.ings.map((g, i) => {
+    const ui = ING_STATE_UI[ingState(p, i)];
+    const cat = CAT_BY_ID[catOf(g)] || CAT_BY_ID.other;
+    return `
+    <div class="ing-item ${ui.cls}" onclick="cycleIng(${i})">
+      <div class="ing-chk">${ui.glyph}</div>
+      <div class="ing-info"><div class="ing-qty">${qty(g)}</div>
+        <div class="ing-name"><span class="ing-cat">${cat.emoji}</span>${esc(g.n)}</div></div>
+      <span class="ing-state ${ui.tag}">${ui.label}</span>
+    </div>`;
+  }).join('');
 
   document.getElementById('ing-list').innerHTML =
     (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') +
     `<div class="sec-div">Ingredients</div>${iRows}`;
 
-  const needed = r.ings.filter((_, i) => !p.checked.includes(i)).length;
+  const needed = r.ings.filter((_, i) => ingState(p, i) === 'need').length;
   document.getElementById('shop-badge').textContent = needed === 0 ? 'all good ✓' : `${needed} needed`;
 }
 function togTool(i) {
   const p = prog();
   const ix = p.checkedTools.indexOf(i);
   ix >= 0 ? p.checkedTools.splice(ix, 1) : p.checkedTools.push(i);
-  renderList(); saveState();
-}
-function togIng(i) {
-  const p = prog();
-  const ix = p.checked.indexOf(i);
-  ix >= 0 ? p.checked.splice(ix, 1) : p.checked.push(i);
   renderList(); saveState();
 }
 function startCooking() {
@@ -1397,7 +1506,7 @@ function initSwipe() {
 /* ═══════════════ SHOPPING LIST ═══════════════ */
 function openShop() {
   const r = cur(), p = prog();
-  const needed = r.ings.filter((_, i) => !p.checked.includes(i));
+  const needed = r.ings.filter((_, i) => ingState(p, i) === 'need');
   document.getElementById('shop-meta').textContent = needed.length === 0
     ? 'You have everything — ready to cook!'
     : `${p.servings} servings · ${needed.length} ingredient${needed.length > 1 ? 's' : ''} to buy`;
@@ -1411,7 +1520,7 @@ function openShop() {
 function closeShop() { closeOverlay('shop-overlay'); }
 function buildListText() {
   const r = cur(), p = prog();
-  const needed = r.ings.filter((_, i) => !p.checked.includes(i));
+  const needed = r.ings.filter((_, i) => ingState(p, i) === 'need');
   const plain = g => {
     if (!g.a) return g.u || '';
     const v = g.a * (p.servings / r.base);
@@ -1752,11 +1861,13 @@ const RECIPE_SCHEMA = {
     tools:    { type: 'array', items: { type: 'object', additionalProperties: false, required: ['note','name'],
                 properties: { note: { type: 'string', description: 'Short note on what it is for' }, name: { type: 'string' } } },
                 description: 'Equipment needed' },
-    ings:     { type: 'array', items: { type: 'object', additionalProperties: false, required: ['a','u','n'],
+    ings:     { type: 'array', items: { type: 'object', additionalProperties: false, required: ['a','u','n','c'],
                 properties: {
                   a: { type: 'number', description: 'Quantity as a number; 0 if not quantifiable (e.g. "salt to taste")' },
                   u: { type: 'string', description: 'Unit (kg, cup, tbsp, tin, cloves, ...); empty string if unitless or not quantifiable' },
-                  n: { type: 'string', description: 'Ingredient name with prep notes, e.g. "Onion, finely chopped"' } } } },
+                  n: { type: 'string', description: 'Ingredient name with prep notes, e.g. "Onion, finely chopped"' },
+                  c: { type: 'string', enum: ['produce','butchery','seafood','dairy','bakery','pantry','spices','frozen','drinks','other'],
+                       description: 'Shop/aisle category: produce (fresh fruit & veg), butchery (meat), seafood, dairy (milk/cheese/eggs), bakery (bread), pantry (tins, dry goods, oil, rice, pasta), spices (spices, stock, sauces, condiments), frozen, drinks (alcohol/juice), or other' } } } },
     steps:    { type: 'array', items: { type: 'object', additionalProperties: false,
                 required: ['title','instr','timer','tlabel','opt','focus','tip'],
                 properties: {
@@ -1776,6 +1887,7 @@ Rules:
 - Group the method into 4-10 clear steps a home cook can follow on a phone while cooking.
 - Every step that involves waiting or timed cooking gets a timer in seconds. Quick prep steps get null.
 - For ingredient quantities: a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for things like "salt to taste" and put the full phrasing in n.
+- Set c to the shop/aisle category for each ingredient so it can be sorted on a shopping list (see the schema's allowed values).
 - focus lists the ingredient names handled in that step.
 - If the source is a photo, read it carefully including handwriting. If parts are unreadable, make the sensible choice and note it in the relevant step's tip.
 - If the source contains no recipe at all, still return the schema but with an empty ings array.`;
@@ -1783,7 +1895,7 @@ Rules:
 const GENERATE_SYSTEM = `You invent complete, authentic, practical recipes from a short description, formatted as structured JSON for a step-by-step cooking companion app.
 Rules:
 - Create a realistic, genuinely cookable recipe that matches the description — cuisine, servings, dietary needs, spice level, time, and any other constraints the user gives. If servings aren't stated, default to 4 and set base to match.
-- Use real, sensible ingredient quantities. a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for "to taste" items and put the full phrasing in n.
+- Use real, sensible ingredient quantities. a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for "to taste" items and put the full phrasing in n. Set c to each ingredient's shop/aisle category (see the schema's allowed values).
 - Group the method into 4-10 clear steps a home cook can follow on a phone while cooking. Every step that involves waiting or timed cooking gets a timer in seconds; quick prep steps get null. focus lists the ingredients used in that step.
 - Keep it makeable by a home cook with normal equipment unless the description asks otherwise. Honour explicit constraints (vegetarian, no nuts, mild, quick, etc.).
 - If the description is vague, make reasonable, common-sense choices rather than refusing.`;

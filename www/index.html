@@ -1,0 +1,2082 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Aphile's Cookbook</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #131009;
+      --surface:    #1D180F;
+      --card:       #261F14;
+      --border:     #3A3020;
+      --ember:      #E8712A;
+      --ember-deep: #B84E18;
+      --ember-glow: rgba(232,113,42,0.13);
+      --text:       #EDE4D4;
+      --muted:      #8C7E6E;
+      --dim:        #564A3C;
+      --green:      #6BAA52;
+      --green-glow: rgba(107,170,82,0.13);
+      --red:        #D94040;
+      --r:          14px;
+      --rs:         8px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+    }
+    #app { max-width: 480px; margin: 0 auto; }
+
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100dvh;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .screen.active { display: flex; }
+
+    /* ── Shared buttons ── */
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; padding: 17px;
+      background: var(--ember); color: #fff; border: none;
+      border-radius: var(--r);
+      font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 600;
+      cursor: pointer; transition: background .2s, transform .1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary[disabled] { background: var(--border); color: var(--dim); cursor: default; }
+    .btn-ghost {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; padding: 14px;
+      background: transparent; color: var(--muted);
+      border: 1px solid var(--border); border-radius: var(--r);
+      font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .btn-ghost:active { opacity: .7; }
+    .skip-link {
+      display: block; width: 100%; margin-top: 12px;
+      background: none; border: none; cursor: pointer;
+      text-align: center; font-family: 'DM Sans', sans-serif;
+      font-size: 13px; color: var(--dim); text-decoration: underline;
+      text-underline-offset: 3px; -webkit-tap-highlight-color: transparent;
+    }
+    .skip-link:active { color: var(--muted); }
+    .back-btn {
+      background: none; border: none; cursor: pointer;
+      color: var(--muted); font-family: 'DM Sans', sans-serif;
+      font-size: 14px; padding: 6px 10px 6px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .back-btn:active { opacity: .6; }
+
+    /* ────────────────────────────────────────
+       HOME — RECIPE LIBRARY
+    ──────────────────────────────────────── */
+    .home-top { padding: calc(30px + env(safe-area-inset-top)) 24px 14px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: space-between; }
+    .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ember); font-weight: 600; margin-bottom: 7px; }
+    .home-top h1 { font-family: 'Playfair Display', serif; font-size: 27px; font-weight: 700; line-height: 1.2; }
+    .home-top h1 em { font-style: italic; color: var(--ember); }
+    .gear-btn {
+      background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+      width: 38px; height: 38px; font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent; margin-top: 4px;
+    }
+    .gear-btn:active { background: var(--border); }
+    .home-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 16px 8px; }
+    .rec-card {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 16px 14px; margin-bottom: 10px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      transition: border-color .2s;
+    }
+    .rec-card:active { border-color: var(--ember-deep); }
+    .rec-emoji {
+      width: 46px; height: 46px; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; flex-shrink: 0;
+    }
+    .rec-info { flex: 1; min-width: 0; }
+    .rec-name { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 700; line-height: 1.25; }
+    .rec-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+    .rec-badges { margin-top: 5px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .rec-badge {
+      font-size: 10.5px; font-weight: 600; letter-spacing: .03em;
+      padding: 2px 8px; border-radius: 9px;
+      background: var(--ember-glow); color: var(--ember);
+    }
+    .rec-badge.timing { animation: dotpulse 1.6s ease-in-out infinite; }
+    .rec-del {
+      background: none; border: none; color: var(--dim); font-size: 17px;
+      padding: 8px; cursor: pointer; flex-shrink: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .rec-del:active { color: var(--red); }
+    .home-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 24px; line-height: 1.6; }
+    .home-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
+    .restore-link {
+      display: block; width: 100%; margin-top: 10px;
+      background: none; border: none; cursor: pointer; text-align: center;
+      font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--dim);
+      text-decoration: underline; text-underline-offset: 3px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ────────────────────────────────────────
+       CHECKLIST
+    ──────────────────────────────────────── */
+    .ing-top { padding: 18px 24px 12px; flex-shrink: 0; }
+    .ing-top h1 { font-family: 'Playfair Display', serif; font-size: 25px; font-weight: 700; line-height: 1.2; }
+    .ing-top h1 em { font-style: italic; color: var(--ember); }
+    .ing-top p { margin-top: 5px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    .srv-row {
+      display: flex; align-items: center; margin-top: 13px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 10px 14px; gap: 12px;
+    }
+    .srv-label { font-size: 13px; color: var(--muted); flex: 1; }
+    .srv-ctrl { display: flex; align-items: center; gap: 14px; }
+    .srv-btn {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+      font-size: 20px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; user-select: none;
+      -webkit-tap-highlight-color: transparent; transition: background .15s;
+    }
+    .srv-btn:active { background: var(--border); }
+    .srv-btn[disabled] { opacity: .3; pointer-events: none; }
+    .srv-val { font-size: 17px; font-weight: 600; min-width: 20px; text-align: center; }
+    .srv-unit { font-size: 12px; color: var(--muted); }
+
+    .ing-prog-wrap { flex-shrink: 0; padding: 10px 24px 8px; }
+    .ing-prog-row { display: flex; justify-content: space-between; margin-bottom: 7px; }
+    .ing-prog-lbl { font-size: 13px; color: var(--muted); }
+    .ing-prog-frac { font-size: 13px; font-weight: 600; color: var(--ember); }
+    .prog-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .prog-fill { height: 100%; background: linear-gradient(90deg, var(--ember-deep), var(--ember)); border-radius: 2px; transition: width .35s ease; }
+
+    .ing-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 4px 16px 8px; }
+    .sec-div {
+      padding: 14px 12px 8px;
+      font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+      color: var(--dim); font-weight: 600;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .sec-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+    .sec-div:first-child { padding-top: 6px; }
+    .ing-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px; border-radius: var(--rs);
+      cursor: pointer; border: 1px solid transparent;
+      transition: background .2s, border-color .2s;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .ing-item:active { opacity: .75; }
+    .ing-item.checked { background: var(--green-glow); border-color: rgba(107,170,82,.22); }
+    .ing-chk {
+      width: 28px; height: 28px; border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+      font-size: 14px; transition: background .2s, border-color .2s;
+    }
+    .ing-item.checked .ing-chk { background: var(--green); border-color: var(--green); color: #fff; }
+    .ing-info { flex: 1; min-width: 0; }
+    .ing-qty { font-size: 12px; font-weight: 600; color: var(--ember); letter-spacing: .02em; }
+    .ing-name { font-size: 15px; line-height: 1.35; transition: color .2s; }
+    .ing-item.checked .ing-name { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--dim); }
+
+    .ing-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
+
+    /* ────────────────────────────────────────
+       STEPS
+    ──────────────────────────────────────── */
+    .step-hdr {
+      flex-shrink: 0;
+      padding: calc(18px + env(safe-area-inset-top)) 16px 10px 12px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    }
+    .dots { display: flex; gap: 7px; align-items: center; flex: 1; }
+    .dot {
+      width: 8px; height: 8px; border-radius: 4px;
+      background: var(--border);
+      transition: all .3s ease;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      flex-shrink: 0;
+    }
+    .dot.done { background: var(--ember-deep); }
+    .dot.active { background: var(--ember); width: 26px; box-shadow: 0 0 10px rgba(232,113,42,.5); }
+    .dot.timing { box-shadow: 0 0 8px rgba(232,113,42,.8); background: var(--ember); animation: dotpulse 1.6s ease-in-out infinite; }
+    @keyframes dotpulse { 0%,100% { opacity: 1; } 50% { opacity: .45; } }
+    .step-ctr { font-size: 13px; color: var(--muted); font-weight: 500; white-space: nowrap; }
+
+    .step-vp { flex: 1; position: relative; overflow: hidden; }
+    .step-card {
+      position: absolute; inset: 0;
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 6px 20px 64px;
+    }
+
+    .swipe-hint {
+      position: absolute; bottom: env(safe-area-inset-bottom); left: 0; right: 0;
+      height: 52px; pointer-events: none; z-index: 2;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: linear-gradient(to top, var(--bg) 55%, transparent);
+    }
+    .sw-chv { font-size: 15px; color: var(--dim); transition: opacity .25s; }
+    .swipe-hint .sw-lbl { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+    .swipe-hint.no-prev .sw-prev { opacity: 0; }
+    .swipe-hint.no-next .sw-next { opacity: 0; }
+
+    .s-eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ember); font-weight: 600; margin-bottom: 8px; }
+    .s-title { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 700; line-height: 1.2; margin-bottom: 18px; }
+    .s-instr {
+      background: var(--card); border: 1px solid var(--border);
+      border-left: 3px solid var(--ember); border-radius: var(--r);
+      padding: 18px 18px 18px 20px;
+      font-size: 15px; line-height: 1.72; margin-bottom: 16px;
+    }
+    .focus-lbl { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 600; margin-bottom: 8px; }
+    .pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+    .pill {
+      padding: 5px 12px;
+      background: var(--ember-glow); border: 1px solid rgba(232,113,42,.28);
+      border-radius: 20px; font-size: 13px; color: var(--ember); font-weight: 500;
+    }
+
+    /* Timer */
+    .timer-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 20px 20px 18px; margin-bottom: 16px; text-align: center;
+    }
+    .t-head { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 600; margin-bottom: 4px; }
+    .t-opt { font-size: 12px; color: var(--muted); margin-bottom: 14px; }
+    .t-ring-wrap { position: relative; width: 118px; height: 118px; margin: 0 auto 12px; }
+    .t-svg { transform: rotate(-90deg); }
+    .t-track { fill: none; stroke: var(--border); stroke-width: 6; }
+    .t-fill { fill: none; stroke: var(--ember); stroke-width: 6; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke .5s; }
+    .t-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .t-digits { font-size: 24px; font-weight: 600; letter-spacing: .03em; }
+    .t-done-msg { display: none; font-size: 11px; font-weight: 600; color: var(--green); letter-spacing: .05em; margin-top: 2px; }
+    .t-adjust { display: flex; gap: 6px; justify-content: center; margin-bottom: 12px; }
+    .t-adj-btn {
+      padding: 7px 0; flex: 1; max-width: 64px;
+      background: var(--surface); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .t-adj-btn:active { background: var(--border); }
+    .t-preset-row { margin-bottom: 12px; }
+    .t-preset-btn {
+      background: none; border: none; cursor: pointer;
+      font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--muted);
+      text-decoration: underline; text-underline-offset: 3px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .t-preset-btn:active { color: var(--text); }
+    .t-btns { display: flex; gap: 8px; }
+    .t-btn-go {
+      flex: 1; padding: 11px; background: var(--ember); color: #fff; border: none;
+      border-radius: var(--rs); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: background .2s, transform .1s;
+    }
+    .t-btn-go:active { transform: scale(.97); }
+    .t-btn-rst {
+      padding: 11px 16px; background: var(--surface); color: var(--muted);
+      border: 1px solid var(--border); border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif; font-size: 14px; cursor: pointer;
+    }
+    .t-btn-rst:active { opacity: .7; }
+
+    /* Alarm banner */
+    .alarm-banner {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 300;
+      display: none; justify-content: center;
+      padding: calc(10px + env(safe-area-inset-top, 0px)) 14px 10px;
+      pointer-events: none;
+    }
+    .alarm-banner.show { display: flex; }
+    .alarm-inner {
+      pointer-events: auto;
+      background: var(--ember); color: #fff;
+      border-radius: var(--r);
+      padding: 13px 14px 13px 18px;
+      display: flex; align-items: center; gap: 12px;
+      box-shadow: 0 8px 30px rgba(0,0,0,.55);
+      max-width: 452px; width: 100%;
+      animation: bannerpulse 1.2s ease-in-out infinite;
+    }
+    @keyframes bannerpulse { 0%,100% { box-shadow: 0 8px 30px rgba(0,0,0,.55); } 50% { box-shadow: 0 8px 36px rgba(232,113,42,.65); } }
+    .alarm-txt { flex: 1; min-width: 0; }
+    .alarm-title { font-size: 14px; font-weight: 600; }
+    .alarm-sub { font-size: 12px; opacity: .85; margin-top: 1px; }
+    .alarm-stop {
+      flex-shrink: 0; padding: 9px 16px;
+      background: rgba(0,0,0,.28); color: #fff;
+      border: none; border-radius: var(--rs);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .alarm-stop:active { background: rgba(0,0,0,.45); }
+
+    .tip { display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs); padding: 13px 14px; }
+    .tip-ic { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .tip-tx { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+    /* ────────────────────────────────────────
+       DONE
+    ──────────────────────────────────────── */
+    .done-scr {
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100dvh; min-height: 100vh;
+      padding: calc(40px + env(safe-area-inset-top)) 24px calc(40px + env(safe-area-inset-bottom));
+      text-align: center; overflow-y: auto;
+    }
+    .done-scr.active { display: flex; }
+    .done-pot { font-size: 60px; margin-bottom: 18px; }
+    .done-title { font-family: 'Playfair Display', serif; font-size: 30px; font-weight: 700; margin-bottom: 10px; }
+    .done-sub { font-size: 15px; color: var(--muted); line-height: 1.6; max-width: 300px; margin-bottom: 28px; }
+    .done-rules { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; text-align: left; width: 100%; max-width: 380px; margin-bottom: 24px; }
+    .done-rules-ey { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--ember); font-weight: 600; margin-bottom: 14px; }
+    .done-rules ul { list-style: none; }
+    .done-rules li { display: flex; gap: 10px; font-size: 14px; color: var(--muted); line-height: 1.5; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .done-rules li:last-child { border-bottom: none; }
+
+    /* ────────────────────────────────────────
+       IMPORT SCREEN
+    ──────────────────────────────────────── */
+    .imp-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 10px 24px 24px; }
+    .imp-busy { text-align: center; padding: 70px 20px; }
+    .imp-busy-ico { font-size: 48px; margin-bottom: 18px; animation: dotpulse 1.4s ease-in-out infinite; }
+    .imp-busy-msg { font-size: 15px; color: var(--muted); line-height: 1.6; }
+    .imp-err { text-align: center; padding: 50px 10px; }
+    .imp-err-ico { font-size: 42px; margin-bottom: 16px; }
+    .imp-err-msg { font-size: 14px; color: var(--muted); line-height: 1.7; margin-bottom: 24px; }
+    .imp-h { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 700; line-height: 1.25; margin-bottom: 4px; }
+    .imp-sub { font-size: 13px; color: var(--muted); line-height: 1.5; margin-bottom: 16px; }
+    .imp-sec {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 14px 16px; margin-bottom: 12px;
+    }
+    .imp-sec-h { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 600; margin-bottom: 10px; }
+    .imp-row { display: flex; gap: 10px; padding: 6px 0; font-size: 14px; line-height: 1.45; }
+    .imp-row-amt { color: var(--ember); font-weight: 600; font-size: 13px; min-width: 58px; flex-shrink: 0; }
+    .imp-step-t { font-weight: 600; }
+    .imp-step-d { color: var(--muted); font-size: 12.5px; }
+    .imp-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
+
+    /* ────────────────────────────────────────
+       SHEETS (add / settings / shopping)
+    ──────────────────────────────────────── */
+    .modal-overlay {
+      display: none;
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,0);
+      align-items: flex-end; justify-content: center;
+      transition: background .25s ease;
+    }
+    .modal-overlay.open { display: flex; background: rgba(0,0,0,.65); }
+    .sheet {
+      background: var(--surface);
+      border: 1px solid var(--border); border-bottom: none;
+      border-radius: 20px 20px 0 0;
+      width: 100%; max-width: 480px; max-height: 82vh;
+      display: flex; flex-direction: column;
+      transform: translateY(100%);
+      transition: transform .3s cubic-bezier(.25,.46,.45,.94);
+    }
+    .modal-overlay.open .sheet { transform: translateY(0); }
+    .sheet-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border); margin: 12px auto 0; flex-shrink: 0; }
+    .sheet-hdr { padding: 16px 22px 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
+    .sheet-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; }
+    .sheet-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 20px; }
+    .sheet-footer { padding: 14px 20px calc(32px + env(safe-area-inset-bottom)); flex-shrink: 0; border-top: 1px solid var(--border); }
+
+    .add-opt {
+      display: flex; align-items: center; gap: 14px;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--r); padding: 16px; margin-bottom: 10px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+      width: 100%; text-align: left; font-family: 'DM Sans', sans-serif; color: var(--text);
+    }
+    .add-opt:active { border-color: var(--ember-deep); }
+    .add-opt-ico { font-size: 24px; flex-shrink: 0; }
+    .add-opt-t { font-size: 15px; font-weight: 600; }
+    .add-opt-d { font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.45; }
+    .add-input-wrap { margin: 4px 0 12px; }
+    .add-input, .add-textarea {
+      width: 100%; padding: 13px 14px;
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--rs);
+      color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+      outline: none;
+    }
+    .add-input:focus, .add-textarea:focus { border-color: var(--ember-deep); }
+    .add-textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
+    .add-go { margin-top: 10px; }
+    .add-note { font-size: 12px; color: var(--dim); line-height: 1.55; margin-top: 10px; }
+    .add-note a { color: var(--muted); }
+
+    .set-label { font-size: 12px; font-weight: 600; color: var(--muted); margin: 8px 0 6px; letter-spacing: .03em; }
+    .set-note { font-size: 12px; color: var(--dim); line-height: 1.6; margin-top: 12px; }
+    .set-status { font-size: 12.5px; margin-top: 10px; font-weight: 600; }
+    .set-divider { height: 1px; background: var(--border); margin: 22px 0 18px; }
+    .set-ver { font-size: 12.5px; color: var(--muted); margin-bottom: 4px; }
+    .set-mini-link { font-size: 12px; color: var(--dim); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .upd-note { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 8px 0 2px; }
+    .upd-note b { color: var(--text); }
+
+    /* Update bar on home */
+    .update-bar {
+      display: flex; align-items: center; gap: 10px;
+      margin: 2px 16px 6px; padding: 12px 14px;
+      background: var(--ember-glow); border: 1px solid rgba(232,113,42,.32);
+      border-radius: var(--r); cursor: pointer; width: calc(100% - 32px);
+      font-family: 'DM Sans', sans-serif; color: var(--text); text-align: left;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .update-bar:active { background: rgba(232,113,42,.2); }
+    .update-bar-ic { font-size: 18px; flex-shrink: 0; }
+    .update-bar-tx { flex: 1; font-size: 14px; font-weight: 500; line-height: 1.35; }
+    .update-bar-go {
+      flex-shrink: 0; font-size: 13px; font-weight: 600; color: #fff;
+      background: var(--ember); padding: 7px 14px; border-radius: 20px;
+    }
+
+    /* Shopping list */
+    .shop-btn-wrap { margin-top: 10px; }
+    .shop-badge {
+      display: inline-flex; align-items: center;
+      background: rgba(232,113,42,.18); color: var(--ember);
+      font-size: 11px; font-weight: 600; letter-spacing: .03em;
+      padding: 2px 8px; border-radius: 10px; margin-left: 8px;
+    }
+    .shop-row { display: flex; align-items: baseline; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
+    .shop-row:last-child { border-bottom: none; }
+    .shop-amt { font-size: 13px; font-weight: 600; color: var(--ember); min-width: 64px; flex-shrink: 0; }
+    .shop-name { font-size: 15px; color: var(--text); }
+    .shop-empty { padding: 40px 20px; text-align: center; font-size: 15px; color: var(--muted); line-height: 1.6; }
+    .shop-empty-icon { font-size: 36px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── HOME ── -->
+  <div class="screen active" id="screen-home">
+    <div class="home-top">
+      <div>
+        <div class="eyebrow">Aphile's</div>
+        <h1>Cook<em>book</em></h1>
+      </div>
+      <button class="gear-btn" onclick="openSettings()">⚙️</button>
+    </div>
+    <button class="update-bar" id="update-bar" style="display:none" onclick="onUpdateBarTap()">
+      <span class="update-bar-ic">⬆️</span>
+      <span class="update-bar-tx" id="update-bar-tx">Update available</span>
+      <span class="update-bar-go">Update</span>
+    </button>
+    <div class="home-list" id="home-list"></div>
+    <div class="home-btm">
+      <button class="btn-primary" onclick="openAddSheet()">＋ Add a recipe</button>
+      <button class="restore-link" id="restore-link" style="display:none" onclick="restoreBuiltin()">Restore the built-in potjie recipe</button>
+    </div>
+  </div>
+
+  <!-- ── CHECKLIST ── -->
+  <div class="screen" id="screen-ing">
+    <div style="padding:calc(14px + env(safe-area-inset-top)) 24px 0;flex-shrink:0">
+      <button class="back-btn" onclick="goHome()">‹ Cookbook</button>
+    </div>
+    <div class="ing-top">
+      <h1 id="ing-title"></h1>
+      <p>Check off your equipment and ingredients before the heat goes on.</p>
+      <div class="srv-row">
+        <span class="srv-label">How many people?</span>
+        <div class="srv-ctrl">
+          <button class="srv-btn" id="btn-minus" onclick="adjSrv(-1)">−</button>
+          <div><span class="srv-val" id="srv-n">4</span> <span class="srv-unit">servings</span></div>
+          <button class="srv-btn" id="btn-plus"  onclick="adjSrv(1)">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="ing-prog-wrap">
+      <div class="ing-prog-row">
+        <span class="ing-prog-lbl">Ready to cook</span>
+        <span class="ing-prog-frac" id="ing-frac">0 / 0</span>
+      </div>
+      <div class="prog-bar"><div class="prog-fill" id="ing-bar" style="width:0"></div></div>
+    </div>
+    <div class="ing-list" id="ing-list"></div>
+    <div class="ing-btm">
+      <button class="btn-primary" id="btn-start" onclick="startCooking()" disabled>Check off everything to begin</button>
+      <div class="shop-btn-wrap">
+        <button class="btn-ghost" id="btn-shop" onclick="openShop()">
+          🛒 Shopping list <span class="shop-badge" id="shop-badge"></span>
+        </button>
+      </div>
+      <button class="skip-link" onclick="startCooking()">Skip the checklist — straight to cooking →</button>
+    </div>
+  </div>
+
+  <!-- ── STEPS ── -->
+  <div class="screen" id="screen-step">
+    <div class="step-hdr">
+      <button class="back-btn" onclick="goHome()" style="flex-shrink:0">‹</button>
+      <div class="dots" id="dots"></div>
+      <div class="step-ctr" id="step-ctr"></div>
+    </div>
+    <div class="step-vp" id="step-vp">
+      <div class="step-card" id="step-card"></div>
+      <div class="swipe-hint no-prev" id="swipe-hint">
+        <span class="sw-chv sw-prev">‹</span>
+        <span class="sw-lbl">swipe</span>
+        <span class="sw-chv sw-next">›</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DONE ── -->
+  <div class="done-scr" id="screen-done">
+    <div class="done-pot" id="done-emoji">🍲</div>
+    <div class="done-title">That's it — enjoy!</div>
+    <p class="done-sub" id="done-sub"></p>
+    <div class="done-rules" id="done-rules" style="display:none">
+      <div class="done-rules-ey">Worth remembering</div>
+      <ul id="done-rules-ul"></ul>
+    </div>
+    <button class="btn-ghost" onclick="goHome()" style="max-width:380px;width:100%">↩ Back to the cookbook</button>
+  </div>
+
+  <!-- ── IMPORT ── -->
+  <div class="screen" id="screen-import">
+    <div style="padding:calc(14px + env(safe-area-inset-top)) 24px 0;flex-shrink:0">
+      <button class="back-btn" onclick="cancelImport()">‹ Cancel</button>
+    </div>
+    <div class="imp-body" id="imp-body"></div>
+    <div class="imp-btm" id="imp-btm" style="display:none">
+      <button class="btn-primary" onclick="saveImport()">✓ Save to my cookbook</button>
+      <button class="skip-link" onclick="cancelImport()">Discard</button>
+    </div>
+  </div>
+
+  <!-- ── ALARM BANNER ── -->
+  <div class="alarm-banner" id="alarm-banner">
+    <div class="alarm-inner">
+      <div class="alarm-txt">
+        <div class="alarm-title" id="alarm-title">⏱ Timer done</div>
+        <div class="alarm-sub" id="alarm-sub"></div>
+      </div>
+      <button class="alarm-stop" onclick="stopAlarm()">Stop</button>
+    </div>
+  </div>
+
+  <!-- ── ADD SHEET ── -->
+  <div class="modal-overlay" id="add-overlay" onclick="if(event.target===this)closeAddSheet()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr">
+        <div class="sheet-title">Add a recipe</div>
+        <div class="sheet-meta">Photo, link, or pasted text — it becomes a guided recipe.</div>
+      </div>
+      <div class="sheet-body" id="add-body"></div>
+    </div>
+  </div>
+
+  <!-- ── SETTINGS SHEET ── -->
+  <div class="modal-overlay" id="set-overlay" onclick="if(event.target===this)closeSettings()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr">
+        <div class="sheet-title">Settings</div>
+        <div class="sheet-meta">AI imports and app updates.</div>
+      </div>
+      <div class="sheet-body">
+        <div class="set-label">Anthropic API key</div>
+        <input class="add-input" id="api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off">
+        <div class="set-status" id="key-status"></div>
+        <button class="btn-primary" style="margin-top:14px;padding:13px" onclick="saveApiKey()">Save key</button>
+        <div class="set-note">
+          The key is stored only on this device and sent only to Anthropic when you import a recipe.
+          A photo import typically costs a few cents. Get a key at <b>console.anthropic.com</b>.
+          Importing from a link works without a key for most recipe sites.
+        </div>
+
+        <div class="set-divider"></div>
+
+        <div class="set-label">App updates</div>
+        <div class="set-ver" id="set-ver"></div>
+        <div id="update-panel"></div>
+        <div class="set-status" id="update-status"></div>
+        <button class="btn-ghost" style="margin-top:12px;padding:12px" onclick="checkForUpdates(true)">Check for updates</button>
+        <details style="margin-top:14px">
+          <summary class="set-mini-link">Update source (advanced)</summary>
+          <input class="add-input" id="update-url-input" type="url" placeholder="https://github.com/USER/REPO/releases/latest/download/version.json" autocomplete="off" style="margin-top:8px">
+          <button class="btn-ghost" style="margin-top:8px;padding:10px" onclick="saveUpdateUrl()">Save source</button>
+          <div class="set-note">Point this at the <b>version.json</b> on your GitHub release. The app checks it silently on launch and decides whether a seamless update or a full reinstall is needed.</div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SHOPPING LIST ── -->
+  <div class="modal-overlay" id="shop-overlay" onclick="if(event.target===this)closeShop()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr">
+        <div class="sheet-title">Shopping List</div>
+        <div class="sheet-meta" id="shop-meta"></div>
+      </div>
+      <div class="sheet-body" id="shop-items"></div>
+      <div class="sheet-footer">
+        <button class="btn-primary" id="copy-btn" onclick="copyList()">Copy to clipboard</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="photoPicked(event)">
+  <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="photoPicked(event)">
+
+</div>
+<script>
+/* ═══════════════ BUILT-IN RECIPE ═══════════════ */
+const POTJIE = {
+  id: 1,
+  name: "Tshandu's Oxtail & Tomato Potjie",
+  emoji: "🍲",
+  subtitle: "Tshandu's slow-simmered classic",
+  base: 4,
+  builtin: true,
+  tools: [
+    { note: 'Cast iron or heavy-bottomed, with lid', name: 'Potjie pot' },
+    { note: 'For turning the oxtail when browning',  name: 'Tongs' },
+    { note: 'For stirring in steps 1 & 2',           name: 'Wooden spoon' },
+    { note: 'For all the chopping prep',             name: 'Sharp knife & cutting board' },
+    { note: 'tbsp and tsp',                          name: 'Measuring spoons' },
+    { note: 'At least ½ cup capacity',               name: 'Measuring cup' },
+    { note: 'For adding liquid and checking',        name: 'Ladle or large spoon' },
+  ],
+  ings: [
+    { a: 1.5,  u: 'kg',      n: 'Oxtail pieces' },
+    { a: 3,    u: 'cloves',  n: 'Garlic, finely chopped' },
+    { a: 1,    u: '',        n: 'Onion, finely chopped' },
+    { a: 2,    u: '',        n: 'Carrots, peeled and chopped' },
+    { a: 1,    u: 'tsp',     n: 'Thyme (fresh or dried), chopped' },
+    { a: 1,    u: '',        n: 'Beef stock capsule / pod' },
+    { a: 1,    u: 'cube',    n: 'Beef stock cube, for crushing in' },
+    { a: 1,    u: 'tbsp',    n: 'Masala' },
+    { a: 1,    u: 'sachet',  n: 'Tomato puree' },
+    { a: 1,    u: 'tin',     n: 'Canned chopped tomatoes' },
+    { a: 0.5,  u: 'cup',     n: 'Red wine' },
+    { a: 1,    u: 'tbsp',    n: 'Chutney (Mrs Balls or similar)' },
+    { a: 3,    u: 'tbsp',    n: 'Butter' },
+  ],
+  steps: [
+    {
+      title: 'Sear the oxtail',
+      instr: 'Heat your potjie pot over medium-high heat — coals or stove, both work. Melt the butter, add garlic and stir for 1 minute until fragrant. Add the oxtail pieces and brown well on all sides — about 4 minutes per side. Let them sit and build a crust; don\'t keep moving them.',
+      timer: 600, tlabel: '10 min sear', opt: false,
+      focus: ['Butter', 'Garlic', 'Oxtail'],
+      tip: 'Deep golden-brown crust on each side = flavour. Don\'t shortcut this step.',
+    },
+    {
+      title: 'Build the base',
+      instr: 'Oxtail stays in the pot. Add the onion and cook until soft. Sprinkle in the masala and crushed stock cube, stirring to coat the meat. Add the tomato puree, red wine, and stock capsule. Stir for 2–3 minutes until it comes together into a thick, fragrant sauce.',
+      timer: 180, tlabel: '3 min — bring it together', opt: false,
+      focus: ['Onion', 'Masala', 'Stock cube (crushed)', 'Tomato puree', 'Red wine', 'Stock capsule'],
+      tip: 'Keep stirring — masala catches and burns quickly. Don\'t leave the pot.',
+    },
+    {
+      title: 'Layer the vegetables',
+      instr: 'From here it\'s a proper potjie — no more stirring. Layer the carrots on top of the meat. Pour the canned tomatoes over everything. Add the chutney and thyme on top. Put the lid on and don\'t touch it.',
+      timer: null, tlabel: '', opt: false,
+      focus: ['Carrots', 'Canned tomatoes', 'Chutney', 'Thyme'],
+      tip: 'The layers cooking into each other is what makes a potjie a potjie. Resist the urge to stir.',
+    },
+    {
+      title: 'Simmer low and slow',
+      instr: 'Add just a small splash of hot water — enough to see moisture at the base. Reduce to a low simmer and put the lid on. Check every 30–40 minutes. Add a small splash of hot water only if it looks dry. If it\'s boiling hard, it\'s too hot — turn it down.',
+      timer: 5400, tlabel: '90 min simmer', opt: true,
+      focus: ['Hot water (small splashes as needed)'],
+      tip: 'Low heat is everything. The pot does the work — your job is just to keep it steady.',
+    },
+    {
+      title: 'When the meat loosens',
+      instr: 'After 2–3 hours the meat will start pulling away from the bones — you\'ll see it when you check. At this point, stop adding plain water. If you need more liquid, use a splash of canned tomato juice or a little more wine. The gravy will now thicken beautifully on its own.',
+      timer: 3600, tlabel: '60 min — keep going', opt: true,
+      focus: ['Tomato juice or wine (if needed)'],
+      tip: 'Thick gravy, bones visible — that\'s the moment. You\'ll know it by sight and smell.',
+    },
+    {
+      title: 'Taste and finish',
+      instr: 'Give the pot a gentle stir from the bottom — first time since step 2. Taste the gravy. Needs depth? Crumble in a bit of stock cube. Needs balance? A touch more chutney. Too thick? Small splash of hot water. Continue on low heat until the meat is completely tender and falling off the bone.',
+      timer: 1800, tlabel: '30 min final simmer', opt: true,
+      focus: ['Stock cube (optional)', 'Chutney (optional)', 'Hot water (optional)'],
+      tip: 'Serve with rice, samp, or stywe pap. Don\'t leave any gravy in the pot.',
+    },
+  ],
+  doneRules: [
+    '🔥 Low heat the whole way — never boiling hard',
+    '🥕 Layers are the point — resist stirring',
+    '🍖 Oxtail needs time, not intensity',
+    '🧂 Stock cube or chutney fixes most problems',
+    '🍷 Next time — add lamb and cow knuckles too',
+  ],
+};
+
+/* ═══════════════ STATE ═══════════════ */
+const STORE_KEY = 'cookbook_v1';
+const KEY_STORE = 'cookbook_apikey';
+let state = {
+  recipes: [JSON.parse(JSON.stringify(POTJIE))],
+  nextId: 2,
+  active: null,          // recipe id currently open
+  progress: {},          // progress[id] = {checked, checkedTools, servings, step, phase, timers}
+};
+let apiKey = '';
+let going = false;
+let txStart = 0, tyStart = 0, txDelta = 0, swDir = null;
+let pendingRecipe = null;   // recipe awaiting save on import screen
+const DEFAULT_CUSTOM = 600;
+const MIN_T = 60, MAX_T = 6 * 3600;
+const CIRC = 2 * Math.PI * 50;
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+function cur() { return state.recipes.find(r => r.id === state.active) || null; }
+function prog(rid) {
+  rid = rid == null ? state.active : rid;
+  if (!state.progress[rid]) {
+    const r = state.recipes.find(x => x.id === rid);
+    state.progress[rid] = { checked: [], checkedTools: [], servings: (r ? r.base : 4), step: 0, phase: null, timers: {} };
+  }
+  return state.progress[rid];
+}
+
+/* ═══════════════ NATIVE BRIDGE (Capacitor) ═══════════════ */
+function isNative() {
+  return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+}
+function LN() {
+  return (window.Capacitor && window.Capacitor.Plugins) ? window.Capacitor.Plugins.LocalNotifications : null;
+}
+let channelReady = false;
+async function ensureNotifReady() {
+  if (isNative() && LN()) {
+    try {
+      await LN().requestPermissions();
+      if (!channelReady) {
+        channelReady = true;
+        await LN().createChannel({
+          id: 'potjie-alarm',
+          name: 'Cooking timers',
+          description: 'Sounds an alarm when a stage timer finishes',
+          importance: 5, visibility: 1, vibration: true,
+        });
+      }
+    } catch (e) {}
+  } else if ('Notification' in window && Notification.permission === 'default') {
+    try { await Notification.requestPermission(); } catch (e) {}
+  }
+}
+function notifId(rid, i) { return rid * 100 + i + 1; }
+async function scheduleNotif(rid, i, atMs) {
+  if (!(isNative() && LN())) return;
+  const r = state.recipes.find(x => x.id === rid); if (!r) return;
+  try {
+    await LN().schedule({ notifications: [{
+      id: notifId(rid, i),
+      title: '⏱ ' + r.name + ' — timer done',
+      body: 'Step ' + (i + 1) + ': ' + r.steps[i].title + ' — time is up!',
+      channelId: 'potjie-alarm',
+      schedule: { at: new Date(atMs), allowWhileIdle: true },
+      autoCancel: true,
+    }]});
+  } catch (e) {}
+}
+async function cancelNotif(rid, i) {
+  if (!(isNative() && LN())) return;
+  try { await LN().cancel({ notifications: [{ id: notifId(rid, i) }] }); } catch (e) {}
+}
+function cancelRecipeNotifs(rid) {
+  const r = state.recipes.find(x => x.id === rid); if (!r) return;
+  for (let i = 0; i < r.steps.length; i++) cancelNotif(rid, i);
+}
+
+/* ═══════════════ PERSISTENCE ═══════════════ */
+function saveState() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function loadState() {
+  try { apiKey = localStorage.getItem(KEY_STORE) || ''; } catch (e) {}
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && Array.isArray(s.recipes) && s.recipes.length) state = s;
+      // keep the built-in recipe's naming in sync with the current app version
+      const bi = state.recipes.find(r => r.builtin);
+      if (bi) { bi.name = POTJIE.name; bi.subtitle = POTJIE.subtitle; bi.emoji = POTJIE.emoji; }
+      // expire timers that finished while the app was closed
+      for (const rid in state.progress) {
+        const ts = state.progress[rid].timers || {};
+        for (const k in ts) {
+          const t = ts[k];
+          if (t.endAt && Date.now() >= t.endAt) { t.endAt = null; t.remain = 0; t.done = true; }
+        }
+      }
+    }
+  } catch (e) {}
+  renderHome();
+  // resume where the user was
+  const c = cur();
+  if (c) {
+    const p = prog();
+    if (p.phase === 'step') { showScr('screen-step'); renderStep(); initSwipe(); return; }
+    if (p.phase === 'ing')  { openRecipe(c.id); return; }
+  }
+  state.active = null;
+  showScr('screen-home');
+}
+
+/* ═══════════════ SCREENS ═══════════════ */
+function showScr(id) {
+  document.querySelectorAll('.screen, .done-scr').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goHome() {
+  const c = cur();
+  if (c) prog().phase = document.getElementById('screen-step').classList.contains('active') ? 'step' : 'ing';
+  state.active = null;
+  saveState();
+  renderHome();
+  showScr('screen-home');
+}
+
+/* ═══════════════ HOME ═══════════════ */
+function runningCount(rid) {
+  const p = state.progress[rid]; if (!p || !p.timers) return 0;
+  let n = 0;
+  for (const k in p.timers) if (p.timers[k].endAt) n++;
+  return n;
+}
+function renderHome() {
+  const list = document.getElementById('home-list');
+  if (!state.recipes.length) {
+    list.innerHTML = '<div class="home-empty">No recipes yet.<br>Add one with a photo, a link, or pasted text.</div>';
+  } else {
+    list.innerHTML = state.recipes.map(r => {
+      const p = state.progress[r.id];
+      const running = runningCount(r.id);
+      const badges = [];
+      if (running) badges.push('<span class="rec-badge timing">⏱ ' + running + ' timer' + (running > 1 ? 's' : '') + ' running</span>');
+      else if (p && p.phase === 'step') badges.push('<span class="rec-badge">cooking — step ' + (p.step + 1) + '</span>');
+      return '<div class="rec-card" onclick="openRecipe(' + r.id + ')">' +
+        '<div class="rec-emoji">' + esc(r.emoji || '🍳') + '</div>' +
+        '<div class="rec-info">' +
+          '<div class="rec-name">' + esc(r.name) + '</div>' +
+          '<div class="rec-meta">' + r.steps.length + ' steps · serves ' + r.base + (r.subtitle ? ' · ' + esc(r.subtitle) : '') + '</div>' +
+          (badges.length ? '<div class="rec-badges">' + badges.join('') + '</div>' : '') +
+        '</div>' +
+        '<button class="rec-del" onclick="event.stopPropagation();deleteRecipe(' + r.id + ')">✕</button>' +
+      '</div>';
+    }).join('');
+  }
+  document.getElementById('restore-link').style.display =
+    state.recipes.some(r => r.builtin) ? 'none' : 'block';
+}
+function deleteRecipe(rid) {
+  const r = state.recipes.find(x => x.id === rid); if (!r) return;
+  if (!window.confirm('Delete "' + r.name + '" from your cookbook?')) return;
+  cancelRecipeNotifs(rid);
+  state.recipes = state.recipes.filter(x => x.id !== rid);
+  delete state.progress[rid];
+  if (state.active === rid) state.active = null;
+  saveState(); renderHome();
+}
+function restoreBuiltin() {
+  state.recipes.unshift(JSON.parse(JSON.stringify(POTJIE)));
+  saveState(); renderHome();
+}
+function openRecipe(rid) {
+  state.active = rid;
+  const p = prog();
+  p.phase = p.phase === 'step' ? 'step' : 'ing';
+  if (p.phase === 'step') { showScr('screen-step'); renderStep(); initSwipe(); }
+  else {
+    document.getElementById('ing-title').innerHTML = esc(cur().name);
+    document.getElementById('srv-n').textContent = p.servings;
+    updSrvBtns();
+    renderList();
+    showScr('screen-ing');
+  }
+  saveState();
+}
+
+/* ═══════════════ QUANTITY FORMAT ═══════════════ */
+function fmtN(v) {
+  if (v <= 0) return '0';
+  const w = Math.floor(v), f = v - w;
+  if (f < 0.08) return String(w);
+  if (f > 0.92) return String(w + 1);
+  const map = [[1/4,'¼'],[1/3,'⅓'],[1/2,'½'],[2/3,'⅔'],[3/4,'¾']];
+  let best = null, bd = 1;
+  for (const [fv, fs] of map) { const d = Math.abs(f - fv); if (d < bd) { bd = d; best = fs; } }
+  if (bd > 0.1) return v.toFixed(1).replace(/\.0$/, '');
+  return w > 0 ? `${w}${best}` : best;
+}
+function qty(g) {
+  if (!g.a) return g.u ? esc(g.u) : '';
+  const v = g.a * (prog().servings / cur().base);
+  return g.u ? `${fmtN(v)} ${esc(g.u)}` : fmtN(v);
+}
+
+/* ═══════════════ SERVINGS ═══════════════ */
+function updSrvBtns() {
+  const n = prog().servings;
+  document.getElementById('btn-minus').disabled = n <= 1;
+  document.getElementById('btn-plus').disabled  = n >= 16;
+}
+function adjSrv(d) {
+  const p = prog();
+  const n = p.servings + d;
+  if (n < 1 || n > 16) return;
+  p.servings = n;
+  document.getElementById('srv-n').textContent = n;
+  updSrvBtns();
+  renderList();
+  saveState();
+}
+
+/* ═══════════════ CHECKLIST ═══════════════ */
+function renderList() {
+  const r = cur(), p = prog();
+  const tI = r.ings.length, tT = r.tools.length;
+  const n = p.checked.length + p.checkedTools.length, total = tI + tT;
+
+  document.getElementById('ing-frac').textContent = `${n} / ${total}`;
+  document.getElementById('ing-bar').style.width  = total ? `${(n / total) * 100}%` : '0';
+  const btn = document.getElementById('btn-start');
+  btn.disabled    = n < total;
+  btn.textContent = n === total ? '✓ All ready — start cooking' : `${total - n} item${total - n > 1 ? 's' : ''} left to check off`;
+
+  const tRows = r.tools.map((t, i) => `
+    <div class="ing-item ${p.checkedTools.includes(i) ? 'checked' : ''}" onclick="togTool(${i})">
+      <div class="ing-chk">${p.checkedTools.includes(i) ? '✓' : ''}</div>
+      <div class="ing-info"><div class="ing-qty">${esc(t.note)}</div><div class="ing-name">${esc(t.name)}</div></div>
+    </div>`).join('');
+
+  const iRows = r.ings.map((g, i) => `
+    <div class="ing-item ${p.checked.includes(i) ? 'checked' : ''}" onclick="togIng(${i})">
+      <div class="ing-chk">${p.checked.includes(i) ? '✓' : ''}</div>
+      <div class="ing-info"><div class="ing-qty">${qty(g)}</div><div class="ing-name">${esc(g.n)}</div></div>
+    </div>`).join('');
+
+  document.getElementById('ing-list').innerHTML =
+    (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') +
+    `<div class="sec-div">Ingredients</div>${iRows}`;
+
+  const needed = r.ings.filter((_, i) => !p.checked.includes(i)).length;
+  document.getElementById('shop-badge').textContent = needed === 0 ? 'all good ✓' : `${needed} needed`;
+}
+function togTool(i) {
+  const p = prog();
+  const ix = p.checkedTools.indexOf(i);
+  ix >= 0 ? p.checkedTools.splice(ix, 1) : p.checkedTools.push(i);
+  renderList(); saveState();
+}
+function togIng(i) {
+  const p = prog();
+  const ix = p.checked.indexOf(i);
+  ix >= 0 ? p.checked.splice(ix, 1) : p.checked.push(i);
+  renderList(); saveState();
+}
+function startCooking() {
+  const p = prog();
+  p.step = 0; p.phase = 'step';
+  showScr('screen-step');
+  renderStep();
+  initSwipe();
+  saveState();
+}
+
+/* ═══════════════ TIMERS (per recipe + step, wall-clock) ═══════════════ */
+function tfmt(s) {
+  if (s >= 3600) {
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+  }
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+function tState(i) {
+  const p = prog();
+  if (!p.timers[i]) {
+    const preset = cur().steps[i].timer || DEFAULT_CUSTOM;
+    p.timers[i] = { total: preset, remain: preset, endAt: null, done: false };
+  }
+  return p.timers[i];
+}
+function tIsRunning(i) { return tState(i).endAt !== null; }
+function tRemainNow(i) {
+  const t = tState(i);
+  return t.endAt ? Math.max(0, Math.ceil((t.endAt - Date.now()) / 1000)) : t.remain;
+}
+
+function timerCardHtml(i) {
+  const s = cur().steps[i], t = tState(i);
+  const remain  = tRemainNow(i);
+  const running = tIsRunning(i);
+  const isDone  = t.done && remain <= 0;
+  const offset  = (CIRC * (1 - (t.total ? Math.min(1, remain / t.total) : 0))).toFixed(2);
+  const goLabel = running ? 'Pause' : (isDone ? 'Start again' : (remain < t.total ? 'Resume' : 'Start'));
+  const presetBtn = s.timer
+    ? `<div class="t-preset-row"><button class="t-preset-btn" onclick="usePreset()">Use recipe preset — ${Math.round(s.timer/60)} min</button></div>`
+    : `<div class="t-preset-row"><button class="t-preset-btn" disabled style="text-decoration:none;cursor:default">No preset — set your own time</button></div>`;
+  return `
+    <div class="timer-card">
+      <div class="t-head">⏱ ${esc(s.tlabel || 'Step timer')}</div>
+      ${s.opt ? '<div class="t-opt">Start when you put the lid on</div>' : '<div class="t-opt">Adjust the time with the buttons below</div>'}
+      <div class="t-ring-wrap">
+        <svg class="t-svg" width="118" height="118" viewBox="0 0 118 118">
+          <circle class="t-track" cx="59" cy="59" r="50"/>
+          <circle class="t-fill" id="ring" cx="59" cy="59" r="50" stroke-dasharray="${CIRC.toFixed(2)}" stroke-dashoffset="${offset}" style="${remain < 30 && remain > 0 && running ? 'stroke:#D94040' : ''}"/>
+        </svg>
+        <div class="t-center">
+          <div class="t-digits" id="tdisp">${tfmt(remain)}</div>
+          <div class="t-done-msg" id="tdone" style="${isDone ? 'display:block' : ''}">DONE</div>
+        </div>
+      </div>
+      <div class="t-adjust">
+        <button class="t-adj-btn" onclick="adjTimer(-10)">−10m</button>
+        <button class="t-adj-btn" onclick="adjTimer(-1)">−1m</button>
+        <button class="t-adj-btn" onclick="adjTimer(1)">+1m</button>
+        <button class="t-adj-btn" onclick="adjTimer(10)">+10m</button>
+      </div>
+      ${presetBtn}
+      <div class="t-btns">
+        <button class="t-btn-go" id="tbtn" onclick="togTimer()" style="${isDone ? 'background:#6BAA52' : ''}">${goLabel}</button>
+        <button class="t-btn-rst" onclick="rstTimer()">Reset</button>
+      </div>
+    </div>`;
+}
+function renderTimer() {
+  const slot = document.getElementById('timer-slot');
+  if (slot) slot.innerHTML = timerCardHtml(prog().step);
+}
+
+function togTimer() {
+  ensureAudio();
+  const rid = state.active, i = prog().step, t = tState(i);
+  if (tIsRunning(i)) {
+    t.remain = tRemainNow(i);
+    t.endAt  = null;
+    cancelNotif(rid, i);
+  } else {
+    if (t.remain <= 0) t.remain = t.total;
+    t.done  = false;
+    t.endAt = Date.now() + t.remain * 1000;
+    const at = t.endAt;
+    // permission + native scheduling happen in the background — UI must not wait
+    (async () => { await ensureNotifReady(); scheduleNotif(rid, i, at); })();
+  }
+  saveState();
+  renderTimer(); renderDots(); renderStepCtr();
+}
+function rstTimer() {
+  const rid = state.active, i = prog().step, t = tState(i);
+  t.endAt = null; t.remain = t.total; t.done = false;
+  cancelNotif(rid, i);
+  saveState();
+  renderTimer(); renderDots(); renderStepCtr();
+}
+function adjTimer(dMin) {
+  const rid = state.active, i = prog().step, t = tState(i);
+  const d = dMin * 60;
+  if (tIsRunning(i)) {
+    let rem = Math.min(MAX_T, Math.max(MIN_T, tRemainNow(i) + d));
+    t.endAt = Date.now() + rem * 1000;
+    if (rem > t.total) t.total = rem;
+    cancelNotif(rid, i);
+    scheduleNotif(rid, i, t.endAt);
+  } else {
+    t.remain = Math.min(MAX_T, Math.max(MIN_T, t.remain + d));
+    t.total  = t.remain;
+    t.done   = false;
+  }
+  saveState();
+  renderTimer();
+}
+function usePreset() {
+  const rid = state.active, i = prog().step, t = tState(i);
+  const preset = cur().steps[i].timer;
+  if (!preset) return;
+  t.total = preset;
+  if (!tIsRunning(i)) { t.remain = t.total; t.done = false; }
+  else {
+    t.endAt = Date.now() + t.total * 1000;
+    cancelNotif(rid, i);
+    scheduleNotif(rid, i, t.endAt);
+  }
+  saveState();
+  renderTimer();
+}
+
+/* Global ticker — drives every running timer in every recipe */
+setInterval(() => {
+  let fired = false;
+  for (const ridStr in state.progress) {
+    const rid = +ridStr, ts = state.progress[rid].timers || {};
+    for (const k in ts) {
+      const t = ts[k];
+      if (t.endAt && Date.now() >= t.endAt) {
+        t.endAt = null; t.remain = 0; t.done = true;
+        fired = true;
+        fireAlarm(rid, +k);
+      }
+    }
+  }
+  if (fired) saveState();
+  if (document.getElementById('screen-step').classList.contains('active') && state.active != null) {
+    updTimerUI();
+    if (fired) { renderTimer(); renderDots(); renderStepCtr(); }
+  }
+  if (fired && document.getElementById('screen-home').classList.contains('active')) renderHome();
+}, 500);
+
+function updTimerUI() {
+  const i = prog().step;
+  if (!tIsRunning(i)) return;
+  const remain = tRemainNow(i), t = tState(i);
+  const ring = document.getElementById('ring'), d = document.getElementById('tdisp');
+  if (!ring || !d) return;
+  ring.style.strokeDashoffset = (CIRC * (1 - Math.min(1, remain / t.total))).toFixed(2);
+  ring.style.stroke = (remain < 30 && remain > 0) ? '#D94040' : '#E8712A';
+  d.textContent = tfmt(remain);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  if (document.getElementById('screen-step').classList.contains('active') && state.active != null) {
+    renderTimer(); renderDots(); renderStepCtr();
+  }
+  if (document.getElementById('screen-home').classList.contains('active')) renderHome();
+});
+
+/* ═══════════════ ALARM (sound + vibration + banner) ═══════════════ */
+let audioCtx = null, beepTimer = null, vibTimer = null, alarmAutoStop = null;
+function ensureAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+function beepOnce() {
+  if (!audioCtx) return;
+  try {
+    const now = audioCtx.currentTime;
+    [0, .18, .36].forEach((off, idx) => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = 'square';
+      o.frequency.value = idx === 2 ? 1318 : 988;
+      g.gain.setValueAtTime(0.0001, now + off);
+      g.gain.exponentialRampToValueAtTime(0.32, now + off + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + off + 0.15);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(now + off); o.stop(now + off + 0.17);
+    });
+  } catch (e) {}
+}
+function fireAlarm(rid, i) {
+  const r = state.recipes.find(x => x.id === rid);
+  const b = document.getElementById('alarm-banner');
+  document.getElementById('alarm-title').textContent = '⏱ Step ' + (i + 1) + ' timer done';
+  document.getElementById('alarm-sub').textContent   = (r ? r.name + ' — ' : '') + (r ? r.steps[i].title : '');
+  b.classList.add('show');
+
+  ensureAudio();
+  beepOnce();
+  clearInterval(beepTimer);
+  beepTimer = setInterval(beepOnce, 1400);
+
+  try { navigator.vibrate && navigator.vibrate([500, 250, 500, 250, 800]); } catch (e) {}
+  clearInterval(vibTimer);
+  vibTimer = setInterval(() => {
+    try { navigator.vibrate && navigator.vibrate([500, 250, 500]); } catch (e) {}
+  }, 2500);
+
+  clearTimeout(alarmAutoStop);
+  alarmAutoStop = setTimeout(stopAlarm, 60000);
+
+  if (!isNative() && 'Notification' in window && Notification.permission === 'granted' && r) {
+    try { new Notification('⏱ ' + r.name + ' — timer done', { body: 'Step ' + (i + 1) + ': ' + r.steps[i].title + ' — time is up!' }); } catch (e) {}
+  }
+}
+function stopAlarm() {
+  clearInterval(beepTimer); beepTimer = null;
+  clearInterval(vibTimer);  vibTimer  = null;
+  clearTimeout(alarmAutoStop);
+  try { navigator.vibrate && navigator.vibrate(0); } catch (e) {}
+  document.getElementById('alarm-banner').classList.remove('show');
+}
+
+/* ═══════════════ STEP RENDER + NAV ═══════════════ */
+function renderStep() {
+  const r = cur(), p = prog(), s = r.steps[p.step], total = r.steps.length;
+  renderDots(); renderStepCtr();
+  const pills = (s.focus || []).map(f => `<span class="pill">${esc(f)}</span>`).join('');
+  document.getElementById('step-card').innerHTML = `
+    <div class="s-eyebrow">${esc(r.name)} — Step ${p.step+1}</div>
+    <div class="s-title">${esc(s.title)}</div>
+    <div class="s-instr">${esc(s.instr)}</div>
+    ${(s.focus && s.focus.length) ? `<div class="focus-lbl">In this step</div><div class="pills">${pills}</div>` : ''}
+    <div id="timer-slot">${timerCardHtml(p.step)}</div>
+    ${s.tip ? `<div class="tip"><div class="tip-ic">💡</div><div class="tip-tx">${esc(s.tip)}</div></div>` : ''}`;
+  document.getElementById('step-card').scrollTop = 0;
+  const hint = document.getElementById('swipe-hint');
+  hint.classList.toggle('no-prev', p.step === 0);
+  hint.classList.toggle('no-next', p.step === total - 1);
+}
+function renderDots() {
+  const r = cur(), p = prog();
+  document.getElementById('dots').innerHTML = r.steps.map((_, i) => {
+    let c = 'dot';
+    if (i < p.step) c += ' done';
+    if (i === p.step) c += ' active';
+    if (tIsRunning(i) && i !== p.step) c += ' timing';
+    return `<div class="${c}" onclick="jumpStep(${i})"></div>`;
+  }).join('');
+}
+function renderStepCtr() {
+  const r = cur(), p = prog();
+  let running = 0;
+  for (const k in p.timers) if (p.timers[k].endAt) running++;
+  document.getElementById('step-ctr').textContent =
+    `${p.step + 1} of ${r.steps.length}` + (running ? ` · ⏱ ${running}` : '');
+}
+function navStep(dir) {
+  if (going) return;
+  const p = prog();
+  const card = document.getElementById('step-card');
+  if (dir === 'next' && p.step >= cur().steps.length - 1) {
+    if (card) { card.style.transition = ''; card.style.transform = ''; }
+    finishCooking();
+    return;
+  }
+  if (dir === 'prev' && p.step <= 0) {
+    if (card) { card.style.transition = 'transform .28s cubic-bezier(.25,.46,.45,.94)'; card.style.transform = 'translateX(0)'; setTimeout(() => { card.style.transition = ''; }, 300); }
+    return;
+  }
+  going = true;
+  const exitX  = dir === 'next' ? '-106%' : '106%';
+  const enterX = dir === 'next' ?  '106%' : '-106%';
+  card.style.transition = 'transform .23s cubic-bezier(.4,0,.6,1)';
+  card.style.transform  = `translateX(${exitX})`;
+  setTimeout(() => {
+    dir === 'next' ? p.step++ : p.step--;
+    card.style.transition = 'none';
+    card.style.transform  = `translateX(${enterX})`;
+    renderStep();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      card.style.transition = 'transform .23s cubic-bezier(.25,.46,.45,.94)';
+      card.style.transform  = 'translateX(0)';
+      setTimeout(() => { card.style.transition = ''; going = false; saveState(); }, 240);
+    }));
+  }, 230);
+}
+function jumpStep(target) {
+  const p = prog();
+  if (target === p.step || going) return;
+  going = true;
+  const card = document.getElementById('step-card');
+  card.style.transition = 'opacity .17s ease';
+  card.style.opacity = '0';
+  setTimeout(() => {
+    p.step = target; renderStep();
+    card.style.opacity = '1';
+    setTimeout(() => { card.style.transition = ''; going = false; saveState(); }, 200);
+  }, 170);
+}
+function finishCooking() {
+  const r = cur();
+  stopAlarm();
+  cancelRecipeNotifs(r.id);
+  delete state.progress[r.id];
+  document.getElementById('done-emoji').textContent = r.emoji || '🍲';
+  document.getElementById('done-sub').textContent = r.subtitle || 'Made with ' + r.name + '. Well done!';
+  const rules = r.doneRules || [];
+  document.getElementById('done-rules').style.display = rules.length ? 'block' : 'none';
+  document.getElementById('done-rules-ul').innerHTML = rules.map(x => `<li><span></span>${esc(x)}</li>`).join('');
+  saveState();
+  showScr('screen-done');
+}
+
+/* ═══════════════ SWIPE ═══════════════ */
+function initSwipe() {
+  const vp = document.getElementById('step-vp');
+  if (vp._init) return;
+  vp._init = true;
+  vp.addEventListener('touchstart', e => {
+    if (going) return;
+    txStart = e.touches[0].clientX; tyStart = e.touches[0].clientY;
+    txDelta = 0; swDir = null;
+  }, { passive: true });
+  vp.addEventListener('touchmove', e => {
+    if (going) return;
+    const dx = e.touches[0].clientX - txStart;
+    const dy = e.touches[0].clientY - tyStart;
+    if (!swDir) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 1.3) swDir = 'h';
+      else if (Math.abs(dy) > 8) swDir = 'v';
+    }
+    if (swDir === 'h') {
+      e.preventDefault();
+      txDelta = dx;
+      const card = document.getElementById('step-card');
+      if (card) { card.style.transition = 'none'; card.style.transform = `translateX(${dx * 0.82}px)`; }
+    }
+  }, { passive: false });
+  vp.addEventListener('touchend', () => {
+    if (going || swDir !== 'h') { swDir = null; return; }
+    swDir = null;
+    const card = document.getElementById('step-card');
+    if (!card) return;
+    if      (txDelta < -60) navStep('next');
+    else if (txDelta >  60) navStep('prev');
+    else {
+      card.style.transition = 'transform .28s cubic-bezier(.25,.46,.45,.94)';
+      card.style.transform  = 'translateX(0)';
+      setTimeout(() => { card.style.transition = ''; }, 300);
+    }
+  }, { passive: true });
+}
+
+/* ═══════════════ SHOPPING LIST ═══════════════ */
+function openShop() {
+  const r = cur(), p = prog();
+  const needed = r.ings.filter((_, i) => !p.checked.includes(i));
+  document.getElementById('shop-meta').textContent = needed.length === 0
+    ? 'You have everything — ready to cook!'
+    : `${p.servings} servings · ${needed.length} ingredient${needed.length > 1 ? 's' : ''} to buy`;
+  document.getElementById('shop-items').innerHTML = needed.length === 0
+    ? `<div class="shop-empty"><div class="shop-empty-icon">✅</div>All ingredients are ticked off.<br>You're good to go!</div>`
+    : needed.map(g => `<div class="shop-row"><span class="shop-amt">${qty(g)}</span><span class="shop-name">${esc(g.n)}</span></div>`).join('');
+  const cb = document.getElementById('copy-btn');
+  cb.textContent = 'Copy to clipboard'; cb.style.background = ''; cb.disabled = needed.length === 0;
+  openOverlay('shop-overlay');
+}
+function closeShop() { closeOverlay('shop-overlay'); }
+function buildListText() {
+  const r = cur(), p = prog();
+  const needed = r.ings.filter((_, i) => !p.checked.includes(i));
+  const plain = g => {
+    if (!g.a) return g.u || '';
+    const v = g.a * (p.servings / r.base);
+    return g.u ? `${fmtN(v)} ${g.u}` : fmtN(v);
+  };
+  const lines = needed.map(g => `${plain(g).padEnd(12)}${g.n}`).join('\n');
+  return `${r.name} — ${p.servings} serving${p.servings > 1 ? 's' : ''}\n${'─'.repeat(36)}\n${lines}`;
+}
+async function copyList() {
+  const text = buildListText();
+  const btn  = document.getElementById('copy-btn');
+  try {
+    await navigator.clipboard.writeText(text);
+    showCopied(btn);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand('copy'); showCopied(btn); } catch {}
+    document.body.removeChild(ta);
+  }
+}
+function showCopied(btn) {
+  if (!btn) return;
+  btn.textContent = '✓ Copied!';
+  btn.style.background = '#6BAA52';
+  setTimeout(() => { btn.textContent = 'Copy to clipboard'; btn.style.background = ''; }, 2500);
+}
+
+/* ═══════════════ OVERLAY HELPERS ═══════════════ */
+function openOverlay(id) {
+  const ov = document.getElementById(id);
+  ov.style.display = 'flex';
+  requestAnimationFrame(() => ov.classList.add('open'));
+}
+function closeOverlay(id) {
+  const ov = document.getElementById(id);
+  ov.classList.remove('open');
+  setTimeout(() => { ov.style.display = 'none'; }, 300);
+}
+
+/* ═══════════════ SETTINGS ═══════════════ */
+function openSettings() {
+  document.getElementById('api-key-input').value = apiKey;
+  document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'No key yet — photo & text imports disabled';
+  document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
+  document.getElementById('update-url-input').value = manifestUrl();
+  document.getElementById('update-status').textContent = '';
+  renderVersionLine();
+  renderUpdatePanel();
+  openOverlay('set-overlay');
+}
+function closeSettings() { closeOverlay('set-overlay'); }
+function saveApiKey() {
+  apiKey = document.getElementById('api-key-input').value.trim();
+  try { localStorage.setItem(KEY_STORE, apiKey); } catch (e) {}
+  document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'Key cleared';
+  document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
+}
+
+/* ═══════════════ ADD SHEET ═══════════════ */
+function openAddSheet() { renderAddSheet('menu'); openOverlay('add-overlay'); }
+function closeAddSheet() { closeOverlay('add-overlay'); }
+function renderAddSheet(mode) {
+  const body = document.getElementById('add-body');
+  if (mode === 'menu') {
+    body.innerHTML = `
+      <button class="add-opt" onclick="captureFromCamera()">
+        <span class="add-opt-ico">📷</span>
+        <span><span class="add-opt-t">Take a photo</span>
+        <div class="add-opt-d">Snap a cookbook page, recipe card, or handwritten note right now${apiKey ? '' : ' — needs an API key (⚙️)'}</div></span>
+      </button>
+      <button class="add-opt" onclick="document.getElementById('photo-input').click()">
+        <span class="add-opt-ico">🖼️</span>
+        <span><span class="add-opt-t">Choose from gallery</span>
+        <div class="add-opt-d">Pick a recipe photo you already have${apiKey ? '' : ' — needs an API key (⚙️)'}</div></span>
+      </button>
+      <button class="add-opt" onclick="renderAddSheet('link')">
+        <span class="add-opt-ico">🔗</span>
+        <span><span class="add-opt-t">From a link</span>
+        <div class="add-opt-d">Paste a recipe URL — or just share the page to this app from your browser</div></span>
+      </button>
+      <button class="add-opt" onclick="renderAddSheet('text')">
+        <span class="add-opt-ico">📋</span>
+        <span><span class="add-opt-t">Paste text</span>
+        <div class="add-opt-d">Copy a recipe from anywhere and paste it here${apiKey ? '' : ' — needs an API key (⚙️)'}</div></span>
+      </button>
+      <div class="add-note">Tip: you can also share a link or a photo directly to <b>Aphile's Cookbook</b> from any other app.</div>`;
+  } else if (mode === 'link') {
+    body.innerHTML = `
+      <div class="add-input-wrap">
+        <input class="add-input" id="link-input" type="url" placeholder="https://www.example.com/best-oxtail-stew" autocomplete="off">
+        <button class="btn-primary add-go" style="padding:13px" onclick="goLinkImport()">Fetch recipe</button>
+        <div class="add-note">Most recipe sites work without an API key. Messy pages fall back to AI (key required).</div>
+      </div>
+      <button class="skip-link" onclick="renderAddSheet('menu')">‹ Back</button>`;
+    setTimeout(() => { const el = document.getElementById('link-input'); if (el) el.focus(); }, 350);
+  } else if (mode === 'text') {
+    body.innerHTML = `
+      <div class="add-input-wrap">
+        <textarea class="add-textarea" id="text-input" placeholder="Paste the whole recipe here — ingredients and method..."></textarea>
+        <button class="btn-primary add-go" style="padding:13px" onclick="goTextImport()">Build recipe</button>
+        <div class="add-note">Pasted text is structured by AI — an API key is required (⚙️ on the home screen).</div>
+      </div>
+      <button class="skip-link" onclick="renderAddSheet('menu')">‹ Back</button>`;
+  }
+}
+
+/* ═══════════════ IMPORT FLOW ═══════════════ */
+function showImport(html, showSave) {
+  closeAddSheet();
+  document.getElementById('imp-body').innerHTML = html;
+  document.getElementById('imp-btm').style.display = showSave ? 'block' : 'none';
+  showScr('screen-import');
+}
+function importBusy(msg) {
+  showImport(`<div class="imp-busy"><div class="imp-busy-ico">🍳</div><div class="imp-busy-msg">${esc(msg)}</div></div>`, false);
+}
+function importError(msg) {
+  showImport(`<div class="imp-err"><div class="imp-err-ico">😕</div><div class="imp-err-msg">${esc(msg)}</div>
+    <button class="btn-ghost" onclick="cancelImport()">Back to the cookbook</button></div>`, false);
+}
+function cancelImport() {
+  pendingRecipe = null;
+  state.active = null;
+  renderHome();
+  showScr('screen-home');
+}
+function showPreview(rec) {
+  pendingRecipe = rec;
+  const ingRows = rec.ings.map(g => {
+    const amt = g.a ? (g.u ? `${fmtN(g.a)} ${esc(g.u)}` : fmtN(g.a)) : esc(g.u || '');
+    return `<div class="imp-row"><span class="imp-row-amt">${amt}</span><span>${esc(g.n)}</span></div>`;
+  }).join('');
+  const stepRows = rec.steps.map((s, i) => `
+    <div class="imp-row"><span class="imp-row-amt">${i + 1}.</span>
+    <span><span class="imp-step-t">${esc(s.title)}</span>${s.timer ? ` <span class="imp-step-d">· ⏱ ${Math.round(s.timer/60)} min</span>` : ''}
+    <div class="imp-step-d">${esc(s.instr.length > 110 ? s.instr.slice(0, 110) + '…' : s.instr)}</div></span></div>`).join('');
+  showImport(`
+    <div class="imp-h">${esc(rec.emoji || '🍳')} ${esc(rec.name)}</div>
+    <div class="imp-sub">${esc(rec.subtitle || '')} · serves ${rec.base} · ${rec.steps.length} steps</div>
+    <div class="imp-sec"><div class="imp-sec-h">Ingredients (${rec.ings.length})</div>${ingRows}</div>
+    <div class="imp-sec"><div class="imp-sec-h">Steps</div>${stepRows}</div>`, true);
+}
+function saveImport() {
+  if (!pendingRecipe) return;
+  pendingRecipe.id = state.nextId++;
+  state.recipes.push(pendingRecipe);
+  saveState();
+  const rid = pendingRecipe.id;
+  pendingRecipe = null;
+  renderHome();
+  openRecipe(rid);
+}
+
+/* ── sanitize whatever a parser/model produced into a safe recipe object ── */
+function normalizeRecipe(r, source) {
+  if (!r || typeof r !== 'object') throw new Error('Could not understand the recipe.');
+  const rec = {
+    id: 0,
+    name: String(r.name || 'Untitled recipe').slice(0, 90),
+    emoji: (typeof r.emoji === 'string' && r.emoji.trim()) ? r.emoji.trim().slice(0, 4) : '🍳',
+    subtitle: String(r.subtitle || '').slice(0, 120),
+    base: Math.min(16, Math.max(1, parseInt(r.base, 10) || 4)),
+    source: source || '',
+    tools: Array.isArray(r.tools) ? r.tools.slice(0, 20).map(t => ({
+      note: String((t && t.note) || '').slice(0, 90),
+      name: String((t && t.name) || '').slice(0, 90),
+    })).filter(t => t.name) : [],
+    ings: Array.isArray(r.ings) ? r.ings.slice(0, 60).map(g => ({
+      a: (typeof g.a === 'number' && isFinite(g.a) && g.a > 0) ? g.a : 0,
+      u: String((g && g.u) || '').slice(0, 30),
+      n: String((g && g.n) || '').slice(0, 160),
+    })).filter(g => g.n) : [],
+    steps: Array.isArray(r.steps) ? r.steps.slice(0, 25).map(s => {
+      let timer = (typeof s.timer === 'number' && isFinite(s.timer) && s.timer >= 30) ? Math.min(MAX_T, Math.round(s.timer)) : null;
+      return {
+        title: String((s && s.title) || 'Step').slice(0, 80),
+        instr: String((s && s.instr) || '').slice(0, 1200),
+        timer,
+        tlabel: String((s && s.tlabel) || (timer ? Math.round(timer / 60) + ' min' : '')).slice(0, 60),
+        opt: !!(s && s.opt),
+        focus: Array.isArray(s && s.focus) ? s.focus.slice(0, 8).map(f => String(f).slice(0, 60)) : [],
+        tip: String((s && s.tip) || '').slice(0, 300),
+      };
+    }).filter(s => s.instr) : [],
+    doneRules: Array.isArray(r.doneRules) ? r.doneRules.slice(0, 8).map(x => String(x).slice(0, 140)) : [],
+  };
+  if (!rec.ings.length)  throw new Error('No ingredients found in that recipe.');
+  if (!rec.steps.length) throw new Error('No cooking steps found in that recipe.');
+  return rec;
+}
+
+/* ═══════════════ INGREDIENT / DURATION PARSING (free path) ═══════════════ */
+const UNIT_RE = /^(kg|kgs|g|grams?|mg|ml|l|liters?|litres?|cups?|tbsps?|tablespoons?|tsps?|teaspoons?|tins?|cans?|cloves?|pinch(?:es)?|handfuls?|slices?|sprigs?|bunch(?:es)?|stalks?|sticks?|oz|ounces?|lbs?|pounds?|sachets?|packets?|cubes?|pieces?|knobs?|dash(?:es)?)\b/i;
+const FRAC = { '¼': .25, '½': .5, '¾': .75, '⅓': 1/3, '⅔': 2/3, '⅛': .125 };
+function parseNum(str) {
+  str = str.trim();
+  let m = str.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)/);       // 1 1/2
+  if (m) return +m[1] + (+m[2] / +m[3]);
+  m = str.match(/^(\d+)\s*\/\s*(\d+)/);                    // 1/2
+  if (m) return +m[1] / +m[2];
+  m = str.match(/^(\d+)\s*([¼½¾⅓⅔⅛])/);                    // 1½
+  if (m) return +m[1] + FRAC[m[2]];
+  m = str.match(/^([¼½¾⅓⅔⅛])/);                            // ½
+  if (m) return FRAC[m[1]];
+  m = str.match(/^(\d+(?:[.,]\d+)?)/);                     // 1.5
+  if (m) return parseFloat(m[1].replace(',', '.'));
+  return null;
+}
+function parseIngredient(raw) {
+  raw = String(raw).replace(/\s+/g, ' ').trim();
+  const numM = raw.match(/^[\d¼½¾⅓⅔⅛][\d\s\/.,¼½¾⅓⅔⅛]*/);
+  if (!numM) return { a: 0, u: '', n: raw };
+  const a = parseNum(numM[0]);
+  let rest = raw.slice(numM[0].length).trim();
+  let u = '';
+  const um = rest.match(UNIT_RE);
+  if (um) { u = um[0].toLowerCase(); rest = rest.slice(um[0].length).replace(/^(of\s+)/i, '').trim(); }
+  if (a == null || !rest) return { a: 0, u: '', n: raw };
+  return { a, u, n: rest.charAt(0).toUpperCase() + rest.slice(1) };
+}
+function parseDuration(text) {
+  const t = String(text);
+  let m = t.match(/(\d+(?:\.\d+)?)\s*(?:to|–|-|—)\s*(\d+(?:\.\d+)?)\s*(hours?|hrs?|minutes?|mins?)/i);
+  if (m) {
+    const v = parseFloat(m[2]);
+    return Math.min(MAX_T, Math.round(v * (/h/i.test(m[3]) ? 3600 : 60)));
+  }
+  m = t.match(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|minutes?|mins?)/i);
+  if (m) {
+    const v = parseFloat(m[1]);
+    const secs = Math.round(v * (/h/i.test(m[2]) ? 3600 : 60));
+    return (secs >= 60) ? Math.min(MAX_T, secs) : null;
+  }
+  return null;
+}
+
+/* ═══════════════ JSON-LD RECIPE (free link import) ═══════════════ */
+function jsonldToRecipe(html, url) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+  let found = null;
+  const isRecipe = o => {
+    const t = o && o['@type'];
+    return t === 'Recipe' || (Array.isArray(t) && t.includes('Recipe'));
+  };
+  for (const sc of scripts) {
+    let data;
+    try { data = JSON.parse(sc.textContent); } catch (e) { continue; }
+    const pool = [];
+    (Array.isArray(data) ? data : [data]).forEach(d => {
+      if (!d) return;
+      pool.push(d);
+      if (Array.isArray(d['@graph'])) pool.push(...d['@graph']);
+    });
+    found = pool.find(isRecipe);
+    if (found) break;
+  }
+  if (!found) return null;
+
+  const name = found.name || 'Imported recipe';
+  let base = 4;
+  const y = found.recipeYield;
+  const ym = String(Array.isArray(y) ? y[0] : (y || '')).match(/\d+/);
+  if (ym) base = Math.min(16, Math.max(1, +ym[0]));
+
+  const ings = (found.recipeIngredient || found.ingredients || []).map(x => parseIngredient(x));
+
+  let instr = found.recipeInstructions || [];
+  if (typeof instr === 'string') instr = instr.split(/\n+|(?<=\.)\s{2,}/).filter(x => x.trim());
+  const flat = [];
+  (Array.isArray(instr) ? instr : [instr]).forEach(it => {
+    if (!it) return;
+    if (typeof it === 'string') { flat.push({ name: '', text: it }); return; }
+    if (it['@type'] === 'HowToSection' && Array.isArray(it.itemListElement)) {
+      it.itemListElement.forEach(sub => flat.push({ name: it.name || '', text: (sub && (sub.text || sub.name)) || '' }));
+      return;
+    }
+    flat.push({ name: it.name || '', text: it.text || it.name || '' });
+  });
+
+  const keyWord = n => {
+    const words = String(n).toLowerCase().replace(/[(),]/g, ' ').split(/\s+/).filter(w => w.length >= 4);
+    return words.sort((a, b) => b.length - a.length)[0] || '';
+  };
+  const steps = flat.filter(f => f.text && f.text.trim()).map((f, idx) => {
+    const text = f.text.replace(/\s+/g, ' ').trim();
+    const timer = parseDuration(text);
+    let title = (f.name && f.name !== text) ? f.name : text.split(/\s+/).slice(0, 6).join(' ');
+    if (title.length > 60) title = title.slice(0, 57) + '…';
+    const focus = [];
+    for (const g of ings) {
+      const kw = keyWord(g.n);
+      if (kw && text.toLowerCase().includes(kw) && focus.length < 6) focus.push(g.n.split(',')[0]);
+    }
+    return {
+      title, instr: text, timer,
+      tlabel: timer ? (timer >= 3600 ? Math.round(timer / 360) / 10 + ' hr' : Math.round(timer / 60) + ' min') : '',
+      opt: !!timer && timer >= 1800,
+      focus, tip: '',
+    };
+  });
+
+  return normalizeRecipe({
+    name,
+    subtitle: String(found.description || '').replace(/\s+/g, ' ').slice(0, 110),
+    emoji: '🍽️',
+    base, tools: [], ings, steps, doneRules: [],
+  }, url);
+}
+
+/* ═══════════════ CLAUDE EXTRACTION ═══════════════ */
+const RECIPE_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['name','subtitle','emoji','base','tools','ings','steps','doneRules'],
+  properties: {
+    name:     { type: 'string', description: 'Recipe name' },
+    subtitle: { type: 'string', description: 'One short appetizing line about the dish' },
+    emoji:    { type: 'string', description: 'A single emoji that best represents the dish' },
+    base:     { type: 'integer', description: 'Number of servings the quantities are for' },
+    tools:    { type: 'array', items: { type: 'object', additionalProperties: false, required: ['note','name'],
+                properties: { note: { type: 'string', description: 'Short note on what it is for' }, name: { type: 'string' } } },
+                description: 'Equipment needed' },
+    ings:     { type: 'array', items: { type: 'object', additionalProperties: false, required: ['a','u','n'],
+                properties: {
+                  a: { type: 'number', description: 'Quantity as a number; 0 if not quantifiable (e.g. "salt to taste")' },
+                  u: { type: 'string', description: 'Unit (kg, cup, tbsp, tin, cloves, ...); empty string if unitless or not quantifiable' },
+                  n: { type: 'string', description: 'Ingredient name with prep notes, e.g. "Onion, finely chopped"' } } } },
+    steps:    { type: 'array', items: { type: 'object', additionalProperties: false,
+                required: ['title','instr','timer','tlabel','opt','focus','tip'],
+                properties: {
+                  title:  { type: 'string', description: 'Short imperative step title, max 6 words' },
+                  instr:  { type: 'string', description: 'Full friendly instructions for this step, 2-5 sentences' },
+                  timer:  { anyOf: [{ type: 'integer' }, { type: 'null' }], description: 'Suggested timer in SECONDS for this step, or null if no waiting/cooking time' },
+                  tlabel: { type: 'string', description: 'Short timer label like "90 min simmer"; empty if timer is null' },
+                  opt:    { type: 'boolean', description: 'true if the timer should be started manually at the right moment (long simmers, oven, resting)' },
+                  focus:  { type: 'array', items: { type: 'string' }, description: 'Ingredient names used in this step, max 6' },
+                  tip:    { type: 'string', description: 'One practical tip for this step; empty string if none' } } } },
+    doneRules:{ type: 'array', items: { type: 'string' }, description: '3-5 short rules/serving notes worth remembering, each starting with one emoji' },
+  },
+};
+const EXTRACT_SYSTEM = `You convert recipes into a structured JSON format for a step-by-step cooking companion app.
+Rules:
+- Preserve the recipe's authentic quantities and intent. Do not invent ingredients.
+- Group the method into 4-10 clear steps a home cook can follow on a phone while cooking.
+- Every step that involves waiting or timed cooking gets a timer in seconds. Quick prep steps get null.
+- For ingredient quantities: a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for things like "salt to taste" and put the full phrasing in n.
+- focus lists the ingredient names handled in that step.
+- If the source is a photo, read it carefully including handwriting. If parts are unreadable, make the sensible choice and note it in the relevant step's tip.
+- If the source contains no recipe at all, still return the schema but with an empty ings array.`;
+
+async function claudeExtract(contentBlocks) {
+  if (!apiKey) throw new Error('This import needs AI. Add your Anthropic API key first — tap ⚙️ on the home screen.');
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-8',
+        max_tokens: 16000,
+        thinking: { type: 'adaptive' },
+        system: EXTRACT_SYSTEM,
+        output_config: { format: { type: 'json_schema', schema: RECIPE_SCHEMA } },
+        messages: [{ role: 'user', content: contentBlocks }],
+      }),
+    });
+  } catch (e) {
+    throw new Error('Could not reach the AI service. Check your internet connection.');
+  }
+  if (!res.ok) {
+    let detail = '';
+    try { const j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
+    if (res.status === 401) throw new Error('The API key was rejected. Check it in ⚙️ settings.');
+    if (res.status === 429) throw new Error('AI rate limit hit — wait a minute and try again.');
+    throw new Error('AI request failed (' + res.status + '). ' + detail.slice(0, 140));
+  }
+  const data = await res.json();
+  if (data.stop_reason === 'refusal') throw new Error('The AI declined to process this content.');
+  const textBlock = (data.content || []).find(b => b.type === 'text');
+  if (!textBlock) throw new Error('The AI returned an empty response. Try again.');
+  let parsed;
+  try { parsed = JSON.parse(textBlock.text); }
+  catch (e) { throw new Error('Could not parse the AI response. Try again.'); }
+  return parsed;
+}
+
+/* ── photo import ── */
+function photoPicked(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if (!file) return;
+  if (!apiKey) { closeAddSheet(); importError('Photo scanning needs an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  importBusy('Reading your photo…');
+  const reader = new FileReader();
+  reader.onload = () => downscaleAndImport(reader.result);
+  reader.onerror = () => importError('Could not read that image file.');
+  reader.readAsDataURL(file);
+}
+
+/* In-app camera: native capture via the Capacitor Camera plugin, with a
+   capture-enabled file input as the fallback (mobile browsers / no plugin). */
+async function captureFromCamera() {
+  if (!apiKey) { closeAddSheet(); importError('Photo scanning needs an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  const Cam = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Camera;
+  if (isNative() && Cam) {
+    closeAddSheet();
+    let photo;
+    try {
+      photo = await Cam.getPhoto({
+        quality: 85,
+        allowEditing: false,
+        resultType: 'base64',   // CameraResultType.Base64 — raw JPEG base64, no data-URL prefix
+        source: 'CAMERA',       // CameraSource.Camera — open the camera directly
+        width: 2000,            // plugin downscales; matches our AI import size
+        correctOrientation: true,
+        presentationStyle: 'fullscreen',
+      });
+    } catch (e) {
+      // User cancelled, or denied the camera permission — quietly return.
+      return;
+    }
+    if (photo && photo.base64String) importFromImageB64(photo.base64String);
+    return;
+  }
+  // Fallback: file input with capture hint (opens the camera in mobile browsers).
+  document.getElementById('camera-input').click();
+}
+function downscaleAndImport(dataUrl) {
+  const img = new Image();
+  img.onload = () => {
+    const MAXD = 2000;
+    let { width: w, height: h } = img;
+    const scale = Math.min(1, MAXD / Math.max(w, h));
+    const cv = document.createElement('canvas');
+    cv.width = Math.round(w * scale); cv.height = Math.round(h * scale);
+    cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+    const jpeg = cv.toDataURL('image/jpeg', 0.85);
+    importFromImageB64(jpeg.split(',')[1]);
+  };
+  img.onerror = () => importError('Could not read that image.');
+  img.src = dataUrl;
+}
+async function importFromImageB64(b64) {
+  importBusy('Reading the recipe with AI — this takes a moment…');
+  try {
+    const raw = await claudeExtract([
+      { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
+      { type: 'text', text: 'Extract the recipe from this photo into the structured format.' },
+    ]);
+    showPreview(normalizeRecipe(raw, 'photo'));
+  } catch (e) { importError(e.message || 'Something went wrong.'); }
+}
+
+/* ── link import ── */
+function goLinkImport() {
+  const url = (document.getElementById('link-input').value || '').trim();
+  if (!url) return;
+  startLinkImport(url);
+}
+async function startLinkImport(url) {
+  if (!/^https?:\/\//i.test(url)) { closeAddSheet(); importError('That does not look like a web link.'); return; }
+  importBusy('Fetching the page…');
+  let html;
+  try {
+    const res = await fetch(url, { headers: { 'Accept': 'text/html' } });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    html = await res.text();
+  } catch (e) {
+    importError(isNative()
+      ? 'Could not load that page (' + (e.message || 'network error') + '). Try copying the recipe text and using "Paste text" instead.'
+      : 'Could not load that page — in a browser, most sites block cross-site fetches. In the Android app this works; here, copy the recipe text and use "Paste text" instead.');
+    return;
+  }
+  // Free path: structured recipe data embedded in the page
+  try {
+    const rec = jsonldToRecipe(html, url);
+    if (rec) { showPreview(rec); return; }
+  } catch (e) {}
+  // Fallback: AI over the page text
+  if (!apiKey) {
+    importError('This page has no machine-readable recipe, so it needs AI. Add an Anthropic API key in ⚙️ settings, or copy the recipe text and use "Paste text".');
+    return;
+  }
+  importBusy('No structured recipe found — asking the AI to read the page…');
+  try {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script,style,noscript,svg,iframe,nav,footer,header,form').forEach(el => el.remove());
+    const text = (doc.body ? doc.body.textContent : html).replace(/\s+/g, ' ').trim().slice(0, 50000);
+    if (text.length < 100) throw new Error('The page had no readable text.');
+    const raw = await claudeExtract([
+      { type: 'text', text: 'Extract the recipe from this web page text into the structured format.\n\nPage URL: ' + url + '\n\nPage text:\n' + text },
+    ]);
+    showPreview(normalizeRecipe(raw, url));
+  } catch (e) { importError(e.message || 'Something went wrong.'); }
+}
+
+/* ── pasted text import ── */
+function goTextImport() {
+  const text = (document.getElementById('text-input').value || '').trim();
+  if (!text) return;
+  startTextImport(text);
+}
+async function startTextImport(text) {
+  if (!apiKey) { closeAddSheet(); importError('Pasted-text import needs an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  importBusy('Structuring the recipe with AI…');
+  try {
+    const raw = await claudeExtract([
+      { type: 'text', text: 'Extract the recipe from this text into the structured format:\n\n' + text.slice(0, 50000) },
+    ]);
+    showPreview(normalizeRecipe(raw, 'pasted text'));
+  } catch (e) { importError(e.message || 'Something went wrong.'); }
+}
+
+/* ═══════════════ ANDROID SHARE TARGET ═══════════════ */
+window.addEventListener('shared-text', e => {
+  const text = String((e && e.detail) || '').trim();
+  if (!text) return;
+  stopAlarm();
+  const urlMatch = text.match(/https?:\/\/\S+/);
+  if (urlMatch) startLinkImport(urlMatch[0]);
+  else startTextImport(text);
+});
+window.addEventListener('shared-image', e => {
+  const b64 = String((e && e.detail) || '');
+  if (!b64) return;
+  stopAlarm();
+  if (!apiKey) { importError('Photo scanning needs an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  importFromImageB64(b64);
+});
+
+/* ── keyboard for desktop ── */
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('screen-step').classList.contains('active')) return;
+  if (e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+  if (e.key === 'ArrowRight') navStep('next');
+  if (e.key === 'ArrowLeft')  navStep('prev');
+});
+
+/* ═══════════════ APP UPDATES ═══════════════ */
+/* APP_WEB_VERSION = the web bundle's own version. Bump on every www/index.html
+   release. An OTA update simply ships a new index.html whose constant is higher,
+   so the running code's constant is always authoritative for "which web version
+   am I". The APK's native build (versionCode) is read separately via App.getInfo,
+   because OTA can't change native code. */
+const APP_WEB_VERSION = 1;
+const UPDATE_URL_KEY = 'cookbook_update_url';
+const DEFAULT_MANIFEST = ''; // set per-device in Settings → Update source
+
+let updateInfo = null;        // current available update (or null)
+let updateBusy = false;
+
+function manifestUrl() {
+  try { return (localStorage.getItem(UPDATE_URL_KEY) || DEFAULT_MANIFEST).trim(); } catch (e) { return DEFAULT_MANIFEST; }
+}
+function saveUpdateUrl() {
+  const v = (document.getElementById('update-url-input').value || '').trim();
+  try { localStorage.setItem(UPDATE_URL_KEY, v); } catch (e) {}
+  updateStatus(v ? 'Source saved. Checking…' : 'Source cleared.');
+  if (v) checkForUpdates(true);
+}
+function CapApp()  { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App; }
+function Updater() { return window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorUpdater; }
+
+function updateStatus(msg, color) {
+  const el = document.getElementById('update-status');
+  if (el) { el.textContent = msg || ''; el.style.color = color || 'var(--muted)'; }
+}
+function renderVersionLine() {
+  const el = document.getElementById('set-ver');
+  if (el) el.textContent = 'Recipe app v' + APP_WEB_VERSION + (nativeBuild != null ? ' · app build ' + nativeBuild : '');
+}
+
+let nativeBuild = null; // versionCode of the installed APK (null in a browser)
+async function readNativeBuild() {
+  const A = CapApp();
+  if (isNative() && A) {
+    try { const info = await A.getInfo(); nativeBuild = parseInt(info.build, 10) || 1; } catch (e) {}
+  }
+  return nativeBuild;
+}
+
+/* Pure, testable decision: given the remote manifest, what (if anything) to do.
+   manifest = { web, native, webRequiresNative, apkUrl, bundleUrl, notes } */
+function decideUpdate(manifest, currentWeb, installedNative) {
+  if (!manifest || typeof manifest !== 'object') return { type: 'none' };
+  const remoteWeb    = parseInt(manifest.web, 10) || 0;
+  const remoteNative = parseInt(manifest.native, 10) || 0;
+  const reqNative    = parseInt(manifest.webRequiresNative, 10) || 0;
+  const base = { notes: String(manifest.notes || ''), apkUrl: String(manifest.apkUrl || ''), bundleUrl: String(manifest.bundleUrl || ''), web: remoteWeb };
+  // A newer native build can only arrive as a full APK.
+  if (installedNative != null && remoteNative > installedNative) return Object.assign({ type: 'apk' }, base);
+  // A newer web bundle: seamless OTA, unless it needs a newer APK than installed.
+  if (remoteWeb > currentWeb) {
+    if (installedNative != null && reqNative > installedNative) return Object.assign({ type: 'apk' }, base);
+    return Object.assign({ type: 'ota' }, base);
+  }
+  return { type: 'none' };
+}
+
+async function checkForUpdates(manual) {
+  const url = manifestUrl();
+  if (!url) { if (manual) updateStatus('No update source set — add one under "Update source" below.', 'var(--dim)'); return; }
+  if (manual) updateStatus('Checking…');
+  let manifest;
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    manifest = await res.json();
+  } catch (e) {
+    if (manual) updateStatus('Could not check for updates (' + (e.message || 'offline') + ').', 'var(--dim)');
+    return;
+  }
+  if (nativeBuild == null) await readNativeBuild();
+  const decision = decideUpdate(manifest, APP_WEB_VERSION, nativeBuild);
+  updateInfo = decision.type === 'none' ? null : decision;
+  renderUpdateBar();
+  if (document.getElementById('set-overlay').classList.contains('open')) renderUpdatePanel();
+  if (manual && decision.type === 'none') updateStatus('You’re on the latest version ✓', 'var(--green)');
+}
+
+function renderUpdateBar() {
+  const bar = document.getElementById('update-bar');
+  if (!bar) return;
+  if (!updateInfo) { bar.style.display = 'none'; return; }
+  document.getElementById('update-bar-tx').textContent = updateInfo.type === 'ota'
+    ? 'Update available — installs in the background'
+    : 'New version available — full update';
+  bar.style.display = 'flex';
+}
+function onUpdateBarTap() { openSettings(); }
+
+function renderUpdatePanel() {
+  const el = document.getElementById('update-panel');
+  if (!el) return;
+  if (!updateInfo) { el.innerHTML = ''; return; }
+  const notes = updateInfo.notes ? `<div class="upd-note">${esc(updateInfo.notes)}</div>` : '';
+  if (updateInfo.type === 'ota') {
+    el.innerHTML = `<div class="upd-note"><b>Seamless update ready.</b> Just the recipe app — installs in the background, no reinstall.</div>${notes}
+      <button class="btn-primary" id="upd-btn" style="margin-top:10px;padding:13px" onclick="applyUpdate()">Update now</button>`;
+  } else {
+    // Full APK: link the user out to the download (Android handles install).
+    const link = updateInfo.apkUrl
+      ? `<a class="btn-primary" href="${esc(updateInfo.apkUrl)}" style="margin-top:10px;padding:13px;text-decoration:none" rel="noopener">Download new version</a>`
+      : `<div class="upd-note" style="color:var(--red)">No download link in the update manifest.</div>`;
+    el.innerHTML = `<div class="upd-note"><b>Full update.</b> This release changes the app itself (new features or permissions), so it installs like a normal app — tap below, then confirm the install.</div>${notes}${link}`;
+  }
+}
+
+async function applyUpdate() {
+  if (!updateInfo || updateBusy) return;
+  if (updateInfo.type !== 'ota') return; // APK path is the anchor link
+  const CU = Updater();
+  if (!(isNative() && CU)) { updateStatus('Seamless updates only work in the installed app.', 'var(--dim)'); return; }
+  if (!updateInfo.bundleUrl) { updateStatus('No update bundle in the manifest.', 'var(--red)'); return; }
+  updateBusy = true;
+  const btn = document.getElementById('upd-btn'); if (btn) { btn.textContent = 'Downloading…'; btn.disabled = true; }
+  try {
+    const bundle = await CU.download({ url: updateInfo.bundleUrl, version: 'web-' + updateInfo.web });
+    if (btn) btn.textContent = 'Applying…';
+    await CU.set(bundle);   // switches to the new bundle and reloads the WebView
+    // set() reloads, so code below normally won't run.
+  } catch (e) {
+    updateBusy = false;
+    if (btn) { btn.textContent = 'Update now'; btn.disabled = false; }
+    updateStatus('Update failed: ' + (e.message || 'unknown') + '. You can still use "Download new version".', 'var(--red)');
+  }
+}
+
+async function initUpdates() {
+  const CU = Updater();
+  // Tell Capgo the new bundle booted OK, so it doesn't auto-roll-back.
+  if (isNative() && CU) { try { await CU.notifyAppReady(); } catch (e) {} }
+  await readNativeBuild();
+  checkForUpdates(false); // silent check on launch
+}
+
+/* ═══════════════ INIT ═══════════════ */
+loadState();
+initUpdates();
+</script>
+</body>
+</html>

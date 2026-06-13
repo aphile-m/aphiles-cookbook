@@ -1,0 +1,20 @@
+{
+  "appId": "com.tshandu.potjie",
+  "appName": "Aphile's Cookbook",
+  "webDir": "www",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "LocalNotifications": {
+      "iconColor": "#E8712A"
+    },
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "directUpdate": false
+    }
+  }
+}

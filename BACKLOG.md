@@ -26,9 +26,18 @@ Ideas and improvements captured for later. Not yet scheduled.
   previous screen (step → checklist → home, pantry → home), and only minimise/
   exit when already on the home screen.
 
-- **Images aren't loading.** (Needs clarification — see note.) The app currently
-  renders recipes with an emoji and never displays photos; imported photos are
-  only sent to the AI, not stored or shown. So this report needs pinning down:
-  which images, on which screen. Candidate causes once identified: emoji not
-  rendering on the device's WebView (showing as boxes), an expectation that
-  recipe photos should display (a feature, not a bug), or a broken asset path.
+## Features
+
+- **Recipe photos for visual appeal.** Today every recipe shows only an emoji;
+  the app would feel much richer with a real photo per recipe (on the home
+  cards and as a header on the recipe screen). Scope:
+  - **Capture:** when importing by photo, keep the image (not just send it to
+    the AI). Also let the user add/replace/remove a photo on any recipe
+    (camera or gallery), including built-in and link/text-imported ones.
+  - **Display:** show the photo as the home-card thumbnail and a recipe-screen
+    header/hero; fall back to the existing emoji tile when there's no photo.
+  - **Storage:** downscale to a small JPEG thumbnail before saving — full
+    photos in `localStorage` will blow the ~5 MB quota fast. Cap dimensions
+    (e.g. ~640px long edge) and quality; consider IndexedDB if it grows.
+  - **Nice-to-have:** for AI-generated/link recipes with no photo, a tasteful
+    gradient+emoji tile (current look) is the fallback rather than a blank.

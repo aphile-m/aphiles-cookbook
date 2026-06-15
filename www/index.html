@@ -128,6 +128,23 @@
       -webkit-tap-highlight-color: transparent;
     }
     .rec-del:active { color: var(--red); }
+    /* recipe photo (thumbnail on home card) */
+    .rec-emoji.rec-photo { background-size: cover; background-position: center; font-size: 0; border-color: var(--ember-deep); }
+    /* recipe hero photo on the checklist screen */
+    .ing-hero { margin: 8px 24px 0; border-radius: var(--r); overflow: hidden; flex-shrink: 0; }
+    .ing-hero.has-img { height: 130px; background-size: cover; background-position: center; position: relative; }
+    .hero-actions { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
+    .hero-btn { background: rgba(0,0,0,.55); color: #fff; border: none; border-radius: 999px; padding: 6px 12px; font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .hero-btn:active { opacity: .7; }
+    .hero-add { width: 100%; background: transparent; border: 1px dashed var(--border); color: var(--muted); border-radius: var(--rs); padding: 10px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .hero-add:active { opacity: .7; }
+    /* photo on the import preview */
+    .imp-photo { width: 100%; max-height: 200px; object-fit: cover; border-radius: var(--r); margin-bottom: 12px; }
+    /* settings: collapsed API-key summary + Edit */
+    .key-saved-row { display: flex; align-items: center; gap: 12px; }
+    .key-saved-row .set-status { flex: 1; margin: 0; }
+    .key-edit-btn { flex-shrink: 0; background: var(--surface); border: 1px solid var(--border); color: var(--text); border-radius: var(--rs); padding: 8px 16px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .key-edit-btn:active { opacity: .7; }
     .home-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 40px 24px; line-height: 1.6; }
     .home-btm { flex-shrink: 0; padding: 12px 20px calc(28px + env(safe-area-inset-bottom)); }
     .restore-link {
@@ -592,6 +609,7 @@
     <div style="padding:calc(14px + env(safe-area-inset-top)) 24px 0;flex-shrink:0">
       <button class="back-btn" onclick="goHome()">‹ Cookbook</button>
     </div>
+    <div id="ing-hero" class="ing-hero" style="display:none"></div>
     <div class="ing-top">
       <h1 id="ing-title"></h1>
       <p>Check off your equipment and ingredients before the heat goes on.</p>
@@ -697,9 +715,17 @@
       </div>
       <div class="sheet-body">
         <div class="set-label">Anthropic API key</div>
-        <input class="add-input" id="api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off">
-        <div class="set-status" id="key-status"></div>
-        <button class="btn-primary" style="margin-top:14px;padding:13px" onclick="saveApiKey()">Save key</button>
+        <div id="key-saved" style="display:none">
+          <div class="key-saved-row">
+            <span class="set-status" style="color:var(--green)">✓ Key saved — AI imports enabled</span>
+            <button class="key-edit-btn" onclick="editApiKey()">Edit</button>
+          </div>
+        </div>
+        <div id="key-edit">
+          <input class="add-input" id="api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off">
+          <div class="set-status" id="key-status"></div>
+          <button class="btn-primary" style="margin-top:14px;padding:13px" onclick="saveApiKey()">Save key</button>
+        </div>
         <div class="set-note">
           The key is stored only on this device and sent only to Anthropic when you import a recipe.
           A photo import typically costs a few cents. Get a key at <b>console.anthropic.com</b>.
@@ -754,6 +780,7 @@
 
   <input type="file" id="photo-input" accept="image/*" style="display:none" onchange="photoPicked(event)">
   <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none" onchange="photoPicked(event)">
+  <input type="file" id="recipe-photo-input" accept="image/*" style="display:none" onchange="recipePhotoPicked(event)">
 
 </div>
 <script>
@@ -1039,7 +1066,7 @@ function cancelRecipeNotifs(rid) {
 
 /* ═══════════════ PERSISTENCE ═══════════════ */
 function saveState() {
-  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) {}
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); return true; } catch (e) { return false; }
 }
 function loadState() {
   try { apiKey = cleanApiKey(localStorage.getItem(KEY_STORE) || ''); } catch (e) {}
@@ -1116,8 +1143,11 @@ function renderHome() {
       const badges = [];
       if (running) badges.push('<span class="rec-badge timing">⏱ ' + running + ' timer' + (running > 1 ? 's' : '') + ' running</span>');
       else if (p && p.phase === 'step') badges.push('<span class="rec-badge">cooking — step ' + (p.step + 1) + '</span>');
+      const tile = r.img
+        ? '<div class="rec-emoji rec-photo" style="background-image:url(&quot;' + r.img + '&quot;)"></div>'
+        : '<div class="rec-emoji">' + esc(r.emoji || '🍳') + '</div>';
       return '<div class="rec-card" onclick="openRecipe(' + r.id + ')">' +
-        '<div class="rec-emoji">' + esc(r.emoji || '🍳') + '</div>' +
+        tile +
         '<div class="rec-info">' +
           '<div class="rec-name">' + esc(r.name) + '</div>' +
           '<div class="rec-meta">' + r.steps.length + ' steps · serves ' + r.base + (r.subtitle ? ' · ' + esc(r.subtitle) : '') + '</div>' +
@@ -1152,6 +1182,7 @@ function openRecipe(rid) {
     document.getElementById('ing-title').innerHTML = esc(cur().name);
     document.getElementById('srv-n').textContent = p.servings;
     updSrvBtns();
+    renderHero();
     renderList();
     showScr('screen-ing');
   }
@@ -1875,10 +1906,26 @@ function closeOverlay(id) {
 }
 
 /* ═══════════════ SETTINGS ═══════════════ */
+/* Show the collapsed "✓ Key saved + Edit" summary when a key exists; show the
+   input + Save button when there's no key yet or the user taps Edit. */
+function renderKeyUI(editing) {
+  const has = !!apiKey;
+  const showEditor = editing || !has;
+  document.getElementById('key-edit').style.display = showEditor ? 'block' : 'none';
+  document.getElementById('key-saved').style.display = showEditor ? 'none' : 'block';
+  if (showEditor) {
+    document.getElementById('api-key-input').value = apiKey;
+    const st = document.getElementById('key-status');
+    st.textContent = has ? '' : 'No key yet — photo & text imports disabled';
+    st.style.color = 'var(--dim)';
+  }
+}
+function editApiKey() {
+  renderKeyUI(true);
+  const i = document.getElementById('api-key-input'); if (i) i.focus();
+}
 function openSettings() {
-  document.getElementById('api-key-input').value = apiKey;
-  document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'No key yet — photo & text imports disabled';
-  document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
+  renderKeyUI(false);
   document.getElementById('update-url-input').value = manifestUrl();
   document.getElementById('update-status').textContent = '';
   renderVersionLine();
@@ -1889,8 +1936,7 @@ function closeSettings() { closeOverlay('set-overlay'); }
 function saveApiKey() {
   apiKey = cleanApiKey(document.getElementById('api-key-input').value);
   try { localStorage.setItem(KEY_STORE, apiKey); } catch (e) {}
-  document.getElementById('key-status').textContent = apiKey ? '✓ Key saved — AI imports enabled' : 'Key cleared';
-  document.getElementById('key-status').style.color = apiKey ? 'var(--green)' : 'var(--dim)';
+  renderKeyUI(false); // collapse to the saved summary (or stay in editor if cleared)
 }
 
 /* ═══════════════ ADD SHEET ═══════════════ */
@@ -1986,6 +2032,7 @@ function showPreview(rec) {
     <span><span class="imp-step-t">${esc(s.title)}</span>${s.timer ? ` <span class="imp-step-d">· ⏱ ${Math.round(s.timer/60)} min</span>` : ''}
     <div class="imp-step-d">${esc(s.instr.length > 110 ? s.instr.slice(0, 110) + '…' : s.instr)}</div></span></div>`).join('');
   showImport(`
+    ${rec.img ? `<img class="imp-photo" src="${rec.img}" alt="">` : ''}
     <div class="imp-h">${esc(rec.emoji || '🍳')} ${esc(rec.name)}</div>
     <div class="imp-sub">${esc(rec.subtitle || '')} · serves ${rec.base} · ${rec.steps.length} steps</div>
     <div class="imp-sec"><div class="imp-sec-h">Ingredients (${rec.ings.length})</div>${ingRows}</div>
@@ -2016,11 +2063,15 @@ function normalizeRecipe(r, source) {
       note: String((t && t.note) || '').slice(0, 90),
       name: String((t && t.name) || '').slice(0, 90),
     })).filter(t => t.name) : [],
-    ings: Array.isArray(r.ings) ? r.ings.slice(0, 60).map(g => ({
-      a: (typeof g.a === 'number' && isFinite(g.a) && g.a > 0) ? g.a : 0,
-      u: String((g && g.u) || '').slice(0, 30),
-      n: String((g && g.n) || '').slice(0, 160),
-    })).filter(g => g.n) : [],
+    ings: Array.isArray(r.ings) ? r.ings.slice(0, 60).map(g => {
+      const o = {
+        a: (typeof g.a === 'number' && isFinite(g.a) && g.a > 0) ? g.a : 0,
+        u: String((g && g.u) || '').slice(0, 30),
+        n: String((g && g.n) || '').slice(0, 160),
+      };
+      if (g && typeof g.c === 'string' && CAT_BY_ID[g.c]) o.c = g.c; // keep AI-assigned category
+      return o;
+    }).filter(g => g.n) : [],
     steps: Array.isArray(r.steps) ? r.steps.slice(0, 25).map(s => {
       let timer = (typeof s.timer === 'number' && isFinite(s.timer) && s.timer >= 30) ? Math.min(MAX_T, Math.round(s.timer)) : null;
       return {
@@ -2346,12 +2397,79 @@ function downscaleAndImport(dataUrl) {
 async function importFromImageB64(b64) {
   importBusy('Reading the recipe with AI — this takes a moment…');
   try {
+    const thumbP = makeThumb('data:image/jpeg;base64,' + b64).catch(() => null); // keep the photo
     const raw = await claudeExtract([
       { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },
       { type: 'text', text: 'Extract the recipe from this photo into the structured format.' },
     ]);
-    showPreview(normalizeRecipe(raw, 'photo'));
+    const rec = normalizeRecipe(raw, 'photo');
+    const thumb = await thumbP;
+    if (thumb) rec.img = thumb;
+    showPreview(rec);
   } catch (e) { importError(e.message || 'Something went wrong.'); }
+}
+
+/* ── recipe photos: a downscaled JPEG thumbnail stored on the recipe (r.img) ── */
+function makeThumb(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 640; // long edge — keeps each thumbnail well under ~80KB
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(img.width * scale));
+      cv.height = Math.max(1, Math.round(img.height * scale));
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      try { resolve(cv.toDataURL('image/jpeg', 0.7)); } catch (e) { reject(e); }
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+}
+function renderHero() {
+  const r = cur(), el = document.getElementById('ing-hero');
+  if (!el || !r) return;
+  el.style.display = 'block';
+  if (r.img) {
+    el.className = 'ing-hero has-img';
+    el.style.backgroundImage = 'url("' + r.img + '")';
+    el.innerHTML = '<div class="hero-actions">' +
+      '<button class="hero-btn" onclick="changeRecipePhoto()">📷 Change</button>' +
+      '<button class="hero-btn" onclick="removeRecipePhoto()">Remove</button></div>';
+  } else {
+    el.className = 'ing-hero no-img';
+    el.style.backgroundImage = '';
+    el.innerHTML = '<button class="hero-add" onclick="changeRecipePhoto()">📷 Add a photo</button>';
+  }
+}
+function changeRecipePhoto() { document.getElementById('recipe-photo-input').click(); }
+function recipePhotoPicked(ev) {
+  const file = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  const r = cur();
+  if (!file || !r) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    let thumb;
+    try { thumb = await makeThumb(reader.result); }
+    catch (e) { alert('Could not read that image.'); return; }
+    const prev = r.img;
+    r.img = thumb;
+    if (!saveState()) {            // out of localStorage quota — revert
+      if (prev) r.img = prev; else delete r.img;
+      saveState();
+      alert('Not enough storage to save that photo. Try removing some recipes or photos first.');
+      return;
+    }
+    renderHero(); renderHome();
+  };
+  reader.onerror = () => alert('Could not read that image file.');
+  reader.readAsDataURL(file);
+}
+function removeRecipePhoto() {
+  const r = cur(); if (!r) return;
+  delete r.img;
+  saveState(); renderHero(); renderHome();
 }
 
 /* ── link import ── */
@@ -2466,7 +2584,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = 6;
+const APP_WEB_VERSION = 7;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 

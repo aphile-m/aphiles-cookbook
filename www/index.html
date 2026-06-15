@@ -289,6 +289,24 @@
     .cat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 14px; }
     .cat-opt { display: flex; align-items: center; gap: 9px; padding: 12px; border-radius: var(--rs); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     .cat-opt.on { border-color: var(--ember); background: var(--ember-glow); color: var(--ember); }
+    /* pantry selection + suggest (Phase 3) */
+    .have-item.selectable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .have-item.sel { background: var(--ember-glow); border-color: rgba(232,113,42,.3); }
+    .have-check { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+    .have-item.sel .have-check { background: var(--ember); border-color: var(--ember); color: #fff; }
+    .suggest-btn { width: 100%; margin: 12px 0 6px; padding: 14px; border: none; border-radius: var(--r); background: var(--ember); color: #fff; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .suggest-btn:active { transform: scale(.98); }
+    .suggest-btn .sb-sub { font-weight: 500; opacity: .85; font-size: 12px; }
+    /* suggestion cards */
+    .sug-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; margin-bottom: 12px; }
+    .sug-head { display: flex; gap: 12px; align-items: flex-start; }
+    .sug-emoji { width: 44px; height: 44px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 23px; flex-shrink: 0; }
+    .sug-name { font-family: 'Playfair Display', serif; font-size: 18px; font-weight: 700; line-height: 1.2; }
+    .sug-sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+    .sug-line { font-size: 13px; line-height: 1.45; margin-top: 10px; }
+    .sug-line.have { color: var(--green); }
+    .sug-line.need { color: var(--muted); }
+    .sug-add { margin-top: 14px; padding: 12px; font-size: 14px; }
 
     /* ────────────────────────────────────────
        STEPS
@@ -602,6 +620,15 @@
     </div>
     <div class="pan-filters" id="pan-filters"></div>
     <div class="pan-body" id="pan-body"></div>
+  </div>
+
+  <!-- ── RECIPE IDEAS (AI from pantry) ── -->
+  <div class="screen" id="screen-suggest">
+    <div class="pan-top">
+      <button class="back-btn" onclick="openPantry()">‹ Pantry</button>
+      <h1 class="pan-h1">Recipe <em>ideas</em></h1>
+    </div>
+    <div class="pan-body" id="suggest-body"></div>
   </div>
 
   <!-- ── CHECKLIST ── -->
@@ -1111,6 +1138,60 @@ function loadState() {
   showScr('screen-home');
 }
 
+/* ═══════════════ PHOTO STORE (IndexedDB) ═══════════════ */
+/* Recipe photos live in IndexedDB (large quota), not localStorage (~5MB, shared
+   with all recipe text). imgCache mirrors them in memory so the synchronous
+   renderers can read recipeImg(id) without awaiting. */
+const imgCache = {};
+let _idb = null;
+function idb() {
+  if (_idb) return _idb;
+  _idb = new Promise((resolve, reject) => {
+    let req;
+    try { req = indexedDB.open('cookbook-photos', 1); } catch (e) { reject(e); return; }
+    req.onupgradeneeded = () => { if (!req.result.objectStoreNames.contains('img')) req.result.createObjectStore('img'); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idb;
+}
+function idbWrite(fn) {
+  return idb().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction('img', 'readwrite');
+    fn(tx.objectStore('img'));
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  }));
+}
+function idbSetImg(id, dataUrl) { return idbWrite(s => s.put(dataUrl, String(id))); }
+function idbDelImg(id)         { return idbWrite(s => s.delete(String(id))); }
+function idbAllImgs() {
+  return idb().then(db => new Promise((resolve, reject) => {
+    const out = {}, cur = db.transaction('img', 'readonly').objectStore('img').openCursor();
+    cur.onsuccess = () => { const c = cur.result; if (c) { out[c.key] = c.value; c.continue(); } else resolve(out); };
+    cur.onerror = () => reject(cur.error);
+  }));
+}
+function recipeImg(rid) { return imgCache[String(rid)]; }
+
+/* Load stored photos into memory; migrate any photos older versions saved inline
+   in localStorage (recipe.img data URLs) into IndexedDB. Async — re-renders when done. */
+async function initPhotos() {
+  try { const all = await idbAllImgs(); for (const k in all) imgCache[k] = all[k]; } catch (e) {}
+  let migrated = false;
+  for (const r of state.recipes) {
+    if (typeof r.img === 'string' && r.img.indexOf('data:') === 0) {
+      imgCache[String(r.id)] = r.img;
+      try { await idbSetImg(r.id, r.img); } catch (e) {}
+      delete r.img; migrated = true;
+    }
+  }
+  if (migrated) saveState();
+  renderHome();
+  if (state.active != null && document.getElementById('screen-ing').classList.contains('active')) renderHero();
+}
+
 /* ═══════════════ SCREENS ═══════════════ */
 function showScr(id) {
   document.querySelectorAll('.screen, .done-scr').forEach(el => el.classList.remove('active'));
@@ -1143,8 +1224,9 @@ function renderHome() {
       const badges = [];
       if (running) badges.push('<span class="rec-badge timing">⏱ ' + running + ' timer' + (running > 1 ? 's' : '') + ' running</span>');
       else if (p && p.phase === 'step') badges.push('<span class="rec-badge">cooking — step ' + (p.step + 1) + '</span>');
-      const tile = r.img
-        ? '<div class="rec-emoji rec-photo" style="background-image:url(&quot;' + r.img + '&quot;)"></div>'
+      const src = recipeImg(r.id);
+      const tile = src
+        ? '<div class="rec-emoji rec-photo" style="background-image:url(&quot;' + src + '&quot;)"></div>'
         : '<div class="rec-emoji">' + esc(r.emoji || '🍳') + '</div>';
       return '<div class="rec-card" onclick="openRecipe(' + r.id + ')">' +
         tile +
@@ -1166,6 +1248,8 @@ function deleteRecipe(rid) {
   cancelRecipeNotifs(rid);
   state.recipes = state.recipes.filter(x => x.id !== rid);
   delete state.progress[rid];
+  delete imgCache[String(rid)];
+  idbDelImg(rid).catch(() => {});
   if (state.active === rid) state.active = null;
   saveState(); renderHome();
 }
@@ -1687,10 +1771,12 @@ let panTab = 'shop';          // 'shop' | 'have'
 let panRecipeFilter = 'all';  // recipe id | 'all'
 let panCatFilter = 'all';     // category id | 'all'
 let catPickKey = null;        // ingredient key being recategorised
+let panSel = new Set();       // pantry items selected for AI suggestions
 
 function openPantry() {
   state.active = null;
   panTab = 'shop'; panRecipeFilter = 'all'; panCatFilter = 'all';
+  panSel.clear();
   showScr('screen-pantry');
   renderPantry();
 }
@@ -1832,6 +1918,13 @@ function renderHaveTab() {
     <button onclick="addPantryItem()">Add</button>
   </div>`;
 
+  let suggestBtn = '';
+  if (all.length) {
+    const n = panSel.size;
+    suggestBtn = `<button class="suggest-btn" onclick="suggestFromPantry()">✨ Suggest recipes` +
+      `<br><span class="sb-sub">${n ? 'from ' + n + ' selected item' + (n > 1 ? 's' : '') : 'tap items to pick, or use everything'}</span></button>`;
+  }
+
   let body;
   if (!all.length) {
     body = `<div class="pan-empty"><span class="pan-empty-ic">🧺</span>Your pantry is empty.<br>Mark ingredients <b>In stock</b> in a recipe — or add them above.</div>`;
@@ -1839,15 +1932,23 @@ function renderHaveTab() {
     body = `<div class="pan-empty"><span class="pan-empty-ic">🧹</span>Nothing in this aisle.</div>`;
   } else {
     body = groupByCat(shown).map(grp => {
-      const rows = grp.items.map(it => `<div class="have-item">
-        <button class="cat-edit" onclick="openCatPicker('${it.key}')">${grp.cat.emoji}</button>
+      const rows = grp.items.map(it => {
+        const sel = panSel.has(it.key);
+        return `<div class="have-item selectable ${sel ? 'sel' : ''}" onclick="toggleHaveSel('${it.key}')">
+        <div class="have-check">${sel ? '✓' : ''}</div>
+        <button class="cat-edit" onclick="event.stopPropagation();openCatPicker('${it.key}')">${grp.cat.emoji}</button>
         <div class="have-name">${esc(it.name)}${it.manual ? '' : '<span class="have-src">from a recipe</span>'}</div>
-        <button class="have-del" onclick="removeHave('${it.key}')" aria-label="Remove">✕</button>
-      </div>`).join('');
+        <button class="have-del" onclick="event.stopPropagation();removeHave('${it.key}')" aria-label="Remove">✕</button>
+      </div>`;
+      }).join('');
       return `<div class="pan-cat">${grp.cat.emoji} ${grp.cat.label}</div>${rows}`;
     }).join('');
   }
-  document.getElementById('pan-body').innerHTML = addRow + body;
+  document.getElementById('pan-body').innerHTML = addRow + suggestBtn + body;
+}
+function toggleHaveSel(key) {
+  if (panSel.has(key)) panSel.delete(key); else panSel.add(key);
+  renderHaveTab();
 }
 
 function addPantryItem() {
@@ -1892,6 +1993,65 @@ function pickCat(cid) {
   closeCatPicker(); renderPantry();
 }
 function closeCatPicker() { catPickKey = null; closeOverlay('cat-overlay'); }
+
+/* ═══════════════ RECIPE IDEAS FROM PANTRY (AI, Phase 3) ═══════════════ */
+let suggestions = [];
+async function suggestFromPantry() {
+  const haveItems = buildHaveItems();
+  if (!haveItems.length) return;
+  const chosen = panSel.size ? haveItems.filter(it => panSel.has(it.key)) : haveItems;
+  const names = chosen.map(it => it.name).filter(Boolean);
+  if (!names.length) return;
+  showScr('screen-suggest');
+  document.getElementById('suggest-body').innerHTML =
+    `<div class="pan-empty"><span class="pan-empty-ic">✨</span>Thinking up recipes from your pantry…<br>This takes a moment.</div>`;
+  if (!apiKey) { renderSuggestError('Recipe ideas need an Anthropic API key. Tap ⚙️ on the home screen to add one.'); return; }
+  try {
+    const out = await claudeExtract(
+      [{ type: 'text', text: 'Pantry ingredients I have:\n- ' + names.join('\n- ') + '\n\nSuggest 3 recipes that mostly use these.' }],
+      SUGGEST_SYSTEM, SUGGEST_SCHEMA);
+    const recipes = (out && Array.isArray(out.recipes)) ? out.recipes : [];
+    if (!recipes.length) { renderSuggestError('No ideas came back — try selecting different items.'); return; }
+    suggestions = recipes;
+    renderSuggestions();
+  } catch (e) { renderSuggestError(e.message || 'Something went wrong.'); }
+}
+function renderSuggestions() {
+  const haveSet = new Set(buildHaveItems().map(it => it.key));
+  document.getElementById('suggest-body').innerHTML = suggestions.map((rec, i) => {
+    const have = [], need = [];
+    (Array.isArray(rec.ings) ? rec.ings : []).forEach(g => {
+      const nm = String((g && g.n) || ''); if (!nm) return;
+      (haveSet.has(normIng(nm)) ? have : need).push(nm);
+    });
+    const line = (cls, label, arr) => arr.length ? `<div class="sug-line ${cls}">${label} ${arr.map(esc).join(', ')}</div>` : '';
+    const base = parseInt(rec.base, 10) || 4;
+    return `<div class="sug-card">
+      <div class="sug-head"><span class="sug-emoji">${esc(rec.emoji || '🍳')}</span>
+        <div><div class="sug-name">${esc(rec.name || 'Recipe')}</div>
+        <div class="sug-sub">${esc(rec.subtitle || '')} · serves ${base}</div></div></div>
+      ${line('have', '✓ You have:', have)}
+      ${line('need', "🛒 You'll need:", need)}
+      <button class="btn-primary sug-add" onclick="addSuggestion(${i})">＋ Add to cookbook</button>
+    </div>`;
+  }).join('');
+}
+function renderSuggestError(msg) {
+  document.getElementById('suggest-body').innerHTML =
+    `<div class="pan-empty"><span class="pan-empty-ic">😕</span>${esc(msg)}<br><br>` +
+    `<button class="btn-ghost" style="max-width:280px;margin:0 auto" onclick="suggestFromPantry()">Try again</button></div>`;
+}
+function addSuggestion(i) {
+  const raw = suggestions[i]; if (!raw) return;
+  let rec;
+  try { rec = normalizeRecipe(raw, 'ai'); }
+  catch (e) { alert(e.message || 'Could not add that recipe.'); return; }
+  rec.id = state.nextId++;
+  state.recipes.push(rec);
+  saveState();
+  renderHome();
+  openRecipe(rec.id);
+}
 
 /* ═══════════════ OVERLAY HELPERS ═══════════════ */
 function openOverlay(id) {
@@ -2041,9 +2201,12 @@ function showPreview(rec) {
 function saveImport() {
   if (!pendingRecipe) return;
   pendingRecipe.id = state.nextId++;
-  state.recipes.push(pendingRecipe);
-  saveState();
   const rid = pendingRecipe.id;
+  const photo = pendingRecipe.img;   // data URL from a photo import, if any
+  delete pendingRecipe.img;          // photos live in IndexedDB, not in state
+  state.recipes.push(pendingRecipe);
+  if (photo) { imgCache[String(rid)] = photo; idbSetImg(rid, photo).catch(() => {}); }
+  saveState();
   pendingRecipe = null;
   renderHome();
   openRecipe(rid);
@@ -2261,6 +2424,20 @@ Rules:
 - Keep it makeable by a home cook with normal equipment unless the description asks otherwise. Honour explicit constraints (vegetarian, no nuts, mild, quick, etc.).
 - If the description is vague, make reasonable, common-sense choices rather than refusing.`;
 
+/* Phase 3: suggest recipes from pantry items. Returns full recipes (same shape
+   as a normal recipe) so "Add to cookbook" can save them directly. */
+const SUGGEST_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['recipes'],
+  properties: { recipes: { type: 'array', items: RECIPE_SCHEMA } },
+};
+const SUGGEST_SYSTEM = `You suggest recipes a home cook can make mostly from what they already have, formatted as structured JSON for a step-by-step cooking app. You are given a list of pantry ingredients.
+Rules:
+- Propose exactly 3 varied, genuinely cookable recipes that LEAN ON the listed pantry ingredients — use as many of them as makes sense.
+- Don't be strict: a recipe may need a few extra common ingredients (oil, salt, water, basic spices, an onion, etc.) beyond the list. Prefer recipes that need fewer extras.
+- Make the 3 meaningfully different from each other (different cuisines or meal types).
+- Each recipe must be complete per the schema: real quantities, 4-10 steps, timers in seconds where relevant, focus per step, and the c shop/aisle category on every ingredient.
+- Default to 4 servings unless a dish naturally differs; set base to match.`;
+
 // Strip invisible/zero-width characters and surrounding whitespace from a
 // pasted API key. Keys are ASCII-only, so any non-ASCII byte is junk picked
 // up on copy/paste (e.g. a non-breaking space or zero-width char) and would
@@ -2293,7 +2470,7 @@ function latin1Headers(h) {
   return out;
 }
 
-async function claudeExtract(contentBlocks, systemPrompt) {
+async function claudeExtract(contentBlocks, systemPrompt, schema) {
   if (!apiKey) throw new Error('This import needs AI. Add your Anthropic API key first — tap ⚙️ on the home screen.');
   let res;
   try {
@@ -2310,7 +2487,7 @@ async function claudeExtract(contentBlocks, systemPrompt) {
         max_tokens: 16000,
         thinking: { type: 'adaptive' },
         system: systemPrompt || EXTRACT_SYSTEM,
-        output_config: { format: { type: 'json_schema', schema: RECIPE_SCHEMA } },
+        output_config: { format: { type: 'json_schema', schema: schema || RECIPE_SCHEMA } },
         messages: [{ role: 'user', content: contentBlocks }],
       }),
     });
@@ -2414,13 +2591,13 @@ function makeThumb(dataUrl) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 640; // long edge — keeps each thumbnail well under ~80KB
+      const MAX = 1280; // long edge — crisp but compact; IndexedDB has room for it
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const cv = document.createElement('canvas');
       cv.width = Math.max(1, Math.round(img.width * scale));
       cv.height = Math.max(1, Math.round(img.height * scale));
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      try { resolve(cv.toDataURL('image/jpeg', 0.7)); } catch (e) { reject(e); }
+      try { resolve(cv.toDataURL('image/jpeg', 0.82)); } catch (e) { reject(e); }
     };
     img.onerror = reject;
     img.src = dataUrl;
@@ -2430,9 +2607,10 @@ function renderHero() {
   const r = cur(), el = document.getElementById('ing-hero');
   if (!el || !r) return;
   el.style.display = 'block';
-  if (r.img) {
+  const src = recipeImg(r.id);
+  if (src) {
     el.className = 'ing-hero has-img';
-    el.style.backgroundImage = 'url("' + r.img + '")';
+    el.style.backgroundImage = 'url("' + src + '")';
     el.innerHTML = '<div class="hero-actions">' +
       '<button class="hero-btn" onclick="changeRecipePhoto()">📷 Change</button>' +
       '<button class="hero-btn" onclick="removeRecipePhoto()">Remove</button></div>';
@@ -2453,14 +2631,9 @@ function recipePhotoPicked(ev) {
     let thumb;
     try { thumb = await makeThumb(reader.result); }
     catch (e) { alert('Could not read that image.'); return; }
-    const prev = r.img;
-    r.img = thumb;
-    if (!saveState()) {            // out of localStorage quota — revert
-      if (prev) r.img = prev; else delete r.img;
-      saveState();
-      alert('Not enough storage to save that photo. Try removing some recipes or photos first.');
-      return;
-    }
+    try { await idbSetImg(r.id, thumb); }
+    catch (e) { alert('Could not save that photo on this device.'); return; }
+    imgCache[String(r.id)] = thumb;
     renderHero(); renderHome();
   };
   reader.onerror = () => alert('Could not read that image file.');
@@ -2468,8 +2641,9 @@ function recipePhotoPicked(ev) {
 }
 function removeRecipePhoto() {
   const r = cur(); if (!r) return;
-  delete r.img;
-  saveState(); renderHero(); renderHome();
+  delete imgCache[String(r.id)];
+  idbDelImg(r.id).catch(() => {});
+  renderHero(); renderHome();
 }
 
 /* ── link import ── */
@@ -2584,7 +2758,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = 7;
+const APP_WEB_VERSION = 8;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 
@@ -2742,6 +2916,7 @@ function handleBackButton() {
   const active = document.querySelector('.screen.active, .done-scr.active');
   const id = active ? active.id : 'screen-home';
   if (id === 'screen-import') { cancelImport(); return; }
+  if (id === 'screen-suggest') { openPantry(); return; } // ideas -> pantry
   if (id === 'screen-home') { const A = CapApp(); if (A && A.exitApp) A.exitApp(); return; }
   goHome(); // checklist / step / done / pantry -> cookbook, matching the in-app back
 }
@@ -2754,6 +2929,7 @@ function initBackButton() {
 
 /* ═══════════════ INIT ═══════════════ */
 loadState();
+initPhotos();
 initUpdates();
 initBackButton();
 </script>

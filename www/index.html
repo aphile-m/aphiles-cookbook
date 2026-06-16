@@ -162,6 +162,8 @@
     .ing-top h1 { font-family: 'Playfair Display', serif; font-size: 25px; font-weight: 700; line-height: 1.2; }
     .ing-top h1 em { font-style: italic; color: var(--ember); }
     .ing-top p { margin-top: 5px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+    .ing-time { margin-top: 6px; font-size: 13px; font-weight: 600; color: var(--ember); }
+    .ing-time:empty { display: none; }
 
     .srv-row {
       display: flex; align-items: center; margin-top: 13px;
@@ -639,6 +641,7 @@
     <div id="ing-hero" class="ing-hero" style="display:none"></div>
     <div class="ing-top">
       <h1 id="ing-title"></h1>
+      <div class="ing-time" id="ing-time"></div>
       <p>Check off your equipment and ingredients before the heat goes on.</p>
       <div class="srv-row">
         <span class="srv-label">How many people?</span>
@@ -1232,7 +1235,9 @@ function renderHome() {
         tile +
         '<div class="rec-info">' +
           '<div class="rec-name">' + esc(r.name) + '</div>' +
-          '<div class="rec-meta">' + r.steps.length + ' steps · serves ' + r.base + (r.subtitle ? ' · ' + esc(r.subtitle) : '') + '</div>' +
+          '<div class="rec-meta">' + r.steps.length + ' steps · serves ' + r.base +
+            (totalCookSecs(r) ? ' · ⏱ ' + fmtDur(totalCookSecs(r)) : '') +
+            (r.subtitle ? ' · ' + esc(r.subtitle) : '') + '</div>' +
           (badges.length ? '<div class="rec-badges">' + badges.join('') + '</div>' : '') +
         '</div>' +
         '<button class="rec-del" onclick="event.stopPropagation();deleteRecipe(' + r.id + ')">✕</button>' +
@@ -1264,6 +1269,8 @@ function openRecipe(rid) {
   if (p.phase === 'step') { showScr('screen-step'); renderStep(); initSwipe(); }
   else {
     document.getElementById('ing-title').innerHTML = esc(cur().name);
+    const tc = totalCookSecs(cur());
+    document.getElementById('ing-time').textContent = tc ? '⏱ ' + fmtDur(tc) + ' total cooking time' : '';
     document.getElementById('srv-n').textContent = p.servings;
     updSrvBtns();
     renderHero();
@@ -1375,6 +1382,18 @@ function tfmt(s) {
     return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
   }
   return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+/* Total cooking time for a recipe = sum of its step timers (in seconds). */
+function totalCookSecs(r) {
+  return (r && Array.isArray(r.steps)) ? r.steps.reduce((t, s) => t + (s && s.timer ? s.timer : 0), 0) : 0;
+}
+function fmtDur(secs) {
+  const mins = Math.round((secs || 0) / 60);
+  if (mins <= 0) return '';
+  const h = Math.floor(mins / 60), m = mins % 60;
+  if (h && m) return h + 'h ' + m + 'm';
+  if (h) return h + 'h';
+  return m + ' min';
 }
 function tState(i) {
   const p = prog();
@@ -2194,7 +2213,7 @@ function showPreview(rec) {
   showImport(`
     ${rec.img ? `<img class="imp-photo" src="${rec.img}" alt="">` : ''}
     <div class="imp-h">${esc(rec.emoji || '🍳')} ${esc(rec.name)}</div>
-    <div class="imp-sub">${esc(rec.subtitle || '')} · serves ${rec.base} · ${rec.steps.length} steps</div>
+    <div class="imp-sub">${esc(rec.subtitle || '')} · serves ${rec.base} · ${rec.steps.length} steps${totalCookSecs(rec) ? ' · ⏱ ' + fmtDur(totalCookSecs(rec)) : ''}</div>
     <div class="imp-sec"><div class="imp-sec-h">Ingredients (${rec.ings.length})</div>${ingRows}</div>
     <div class="imp-sec"><div class="imp-sec-h">Steps</div>${stepRows}</div>`, true);
 }
@@ -2758,7 +2777,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = 8;
+const APP_WEB_VERSION = 9;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 

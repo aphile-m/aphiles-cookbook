@@ -31,8 +31,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          enablement: true   # turn Pages on automatically if it isn't already
       - name: Upload www as the site
         uses: actions/upload-pages-artifact@v3
         with:

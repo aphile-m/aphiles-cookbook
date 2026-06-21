@@ -536,7 +536,10 @@
     .sheet-hdr { padding: 16px 22px 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); }
     .sheet-title { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 700; }
     .sheet-meta { font-size: 13px; color: var(--muted); margin-top: 3px; }
-    .sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 20px; }
+    .sheet-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 14px 20px calc(24px + env(safe-area-inset-bottom)); }
+    .ing-foot { margin: 16px 4px 4px; padding: 13px 14px; border: 1px dashed var(--border); border-radius: var(--rs); text-align: center; }
+    .ing-foot-t { font-size: 13px; font-weight: 700; color: var(--ember); }
+    .ing-foot-s { font-size: 12px; color: var(--muted); margin-top: 5px; line-height: 1.45; }
     .sheet-footer { padding: 14px 20px calc(32px + env(safe-area-inset-bottom)); flex-shrink: 0; border-top: 1px solid var(--border); }
 
     .add-opt {
@@ -1395,6 +1398,24 @@ function ingStepHeader(grp) {
   const lead = grp.lead ? '⏱ ~' + fmtDur(grp.lead) + ' in' : 'at the start';
   return `<div class="step-div"><span class="sd-step">Step ${grp.stepIdx + 1}</span><span class="sd-title">${esc(grp.title)}</span><span class="step-lead">${lead}</span></div>`;
 }
+/* End-of-list summary: total cooking time, and the long tail after the last
+   ingredient goes in — so you can see when there's hands-off time to nip out
+   (e.g. grab the wine while the meat cooks). Doubles as a clear list end. */
+function ingListFooter(r) {
+  const total = totalCookSecs(r);
+  if (!total) return '';
+  const stepGroups = ingredientStepGroups(r).filter(g => g.stepIdx >= 0);
+  let tail = '';
+  if (stepGroups.length) {
+    const lastLead = stepGroups[stepGroups.length - 1].lead || 0;
+    const after = total - lastLead;
+    if (after > 0) tail = lastLead
+      ? `Last ingredients go in ~${fmtDur(lastLead)} in, then ~${fmtDur(after)} of cooking — time to nip out if something's missing.`
+      : `All ingredients go in at the start, then ~${fmtDur(after)} of cooking.`;
+  }
+  return `<div class="ing-foot"><div class="ing-foot-t">⏱ ~${fmtDur(total)} total cooking time</div>` +
+    `${tail ? `<div class="ing-foot-s">${tail}</div>` : ''}</div>`;
+}
 function ingRowHtml(g, i, p) {
   const ui = ING_STATE_UI[ingState(p, i)];
   const cat = CAT_BY_ID[catOf(g)] || CAT_BY_ID.other;
@@ -1429,7 +1450,7 @@ function renderList() {
   ).join('');
 
   document.getElementById('ing-list').innerHTML =
-    (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') + iHtml;
+    (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') + iHtml + ingListFooter(r);
 
   const needed = r.ings.filter((_, i) => ingState(p, i) === 'need').length;
   document.getElementById('shop-badge').textContent = needed === 0 ? 'all good ✓' : `${needed} needed`;
@@ -1748,7 +1769,7 @@ function renderStepIngredients() {
         `<span class="ref-n"><span class="ref-cat">${cat.emoji}</span>${esc(g.n)}</span>${tag}</div>`;
     }).join('');
     return head + rows;
-  }).join('');
+  }).join('') + ingListFooter(r);
 }
 function openStepIngredients() {
   if (!cur()) return;
@@ -2920,7 +2941,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = 13;
+const APP_WEB_VERSION = 14;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 

@@ -371,6 +371,13 @@
       border-radius: 20px; font-size: 13px; color: var(--ember); font-weight: 500;
     }
     .pill-q { margin-left: 6px; font-weight: 700; color: var(--text); }
+    .step-ing-link { display: block; width: 100%; margin: 0 0 16px; padding: 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .step-ing-link:active { opacity: .7; }
+    /* ingredient step-group headers (checklist + ingredients overlay) */
+    .step-div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; padding: 16px 12px 6px; }
+    .step-div .sd-step { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
+    .step-div .sd-title { font-size: 13px; font-weight: 600; color: var(--muted); flex: 1; min-width: 0; }
+    .step-lead { font-size: 11px; font-weight: 700; color: var(--ember); white-space: nowrap; }
 
     /* Timer */
     .timer-card {
@@ -682,7 +689,7 @@
   <!-- ── STEPS ── -->
   <div class="screen" id="screen-step">
     <div class="step-hdr">
-      <button class="back-btn" onclick="goHome()" style="flex-shrink:0">‹</button>
+      <button class="back-btn" onclick="stepBack()" style="flex-shrink:0">‹</button>
       <div class="dots" id="dots"></div>
       <div class="step-ctr" id="step-ctr"></div>
     </div>
@@ -813,6 +820,18 @@
       <div class="sheet-body">
         <div class="cat-grid" id="cat-grid"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── INGREDIENTS (quick reference while cooking) ── -->
+  <div class="modal-overlay" id="ingredients-overlay" onclick="if(event.target===this)closeStepIngredients()">
+    <div class="sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr">
+        <div class="sheet-title">Ingredients</div>
+        <div class="sheet-meta">Grouped by the step they're first needed.</div>
+      </div>
+      <div class="sheet-body" id="step-ing-body"></div>
     </div>
   </div>
 
@@ -1331,6 +1350,44 @@ const ING_STATE_UI = {
   have: { cls: 'checked',    glyph: '✓', tag: 'st-have', label: 'In stock' },
   last: { cls: 'using-last', glyph: '◐', tag: 'st-last', label: 'Used the last' },
 };
+/* Group a recipe's ingredients by the FIRST step that uses them (via focus
+   matching), with the lead time before each step (sum of earlier step timers)
+   so the cook can see how long they have before each ingredient is needed.
+   Ingredients not tied to any step fall into a final "Anytime" group. */
+function ingredientStepGroups(r) {
+  const steps = r.steps || [], ings = r.ings || [];
+  const firstStep = ings.map(() => -1);
+  steps.forEach((s, si) => {
+    (s.focus || []).forEach(f => {
+      const g = matchIng(f, ings);
+      if (g) { const idx = ings.indexOf(g); if (idx >= 0 && firstStep[idx] === -1) firstStep[idx] = si; }
+    });
+  });
+  let acc = 0;
+  const leadBefore = steps.map(s => { const l = acc; acc += (s.timer || 0); return l; });
+  const byStep = {};
+  ings.forEach((g, i) => { const si = firstStep[i]; (byStep[si] = byStep[si] || []).push({ g, i }); });
+  const groups = [];
+  steps.forEach((s, si) => { if (byStep[si]) groups.push({ stepIdx: si, title: s.title, lead: leadBefore[si], items: byStep[si] }); });
+  if (byStep[-1]) groups.push({ stepIdx: -1, title: null, lead: 0, items: byStep[-1] });
+  return groups;
+}
+function ingStepHeader(grp) {
+  if (grp.stepIdx === -1) return `<div class="step-div"><span class="sd-step">Anytime</span><span class="sd-title">pantry &amp; extras</span></div>`;
+  const lead = grp.lead ? '⏱ ~' + fmtDur(grp.lead) + ' in' : 'at the start';
+  return `<div class="step-div"><span class="sd-step">Step ${grp.stepIdx + 1}</span><span class="sd-title">${esc(grp.title)}</span><span class="step-lead">${lead}</span></div>`;
+}
+function ingRowHtml(g, i, p) {
+  const ui = ING_STATE_UI[ingState(p, i)];
+  const cat = CAT_BY_ID[catOf(g)] || CAT_BY_ID.other;
+  return `
+    <div class="ing-item ${ui.cls}" onclick="cycleIng(${i})">
+      <div class="ing-chk">${ui.glyph}</div>
+      <div class="ing-info"><div class="ing-qty">${qty(g)}</div>
+        <div class="ing-name"><span class="ing-cat">${cat.emoji}</span>${esc(g.n)}</div></div>
+      <span class="ing-state ${ui.tag}">${ui.label}</span>
+    </div>`;
+}
 function renderList() {
   const r = cur(), p = prog();
   const tI = r.ings.length, tT = r.tools.length;
@@ -1349,21 +1406,12 @@ function renderList() {
       <div class="ing-info"><div class="ing-qty">${esc(t.note)}</div><div class="ing-name">${esc(t.name)}</div></div>
     </div>`).join('');
 
-  const iRows = r.ings.map((g, i) => {
-    const ui = ING_STATE_UI[ingState(p, i)];
-    const cat = CAT_BY_ID[catOf(g)] || CAT_BY_ID.other;
-    return `
-    <div class="ing-item ${ui.cls}" onclick="cycleIng(${i})">
-      <div class="ing-chk">${ui.glyph}</div>
-      <div class="ing-info"><div class="ing-qty">${qty(g)}</div>
-        <div class="ing-name"><span class="ing-cat">${cat.emoji}</span>${esc(g.n)}</div></div>
-      <span class="ing-state ${ui.tag}">${ui.label}</span>
-    </div>`;
-  }).join('');
+  const iHtml = ingredientStepGroups(r).map(grp =>
+    ingStepHeader(grp) + grp.items.map(({ g, i }) => ingRowHtml(g, i, p)).join('')
+  ).join('');
 
   document.getElementById('ing-list').innerHTML =
-    (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') +
-    `<div class="sec-div">Ingredients</div>${iRows}`;
+    (tT ? `<div class="sec-div">Equipment</div>${tRows}` : '') + iHtml;
 
   const needed = r.ings.filter((_, i) => ingState(p, i) === 'need').length;
   document.getElementById('shop-badge').textContent = needed === 0 ? 'all good ✓' : `${needed} needed`;
@@ -1642,6 +1690,7 @@ function renderStep() {
     <div class="s-title">${esc(s.title)}</div>
     <div class="s-instr">${esc(s.instr)}</div>
     ${(s.focus && s.focus.length) ? `<div class="focus-lbl">In this step</div><div class="pills">${pills}</div>` : ''}
+    <button class="step-ing-link" onclick="openStepIngredients()">🧾 See all ingredients</button>
     <div id="timer-slot">${timerCardHtml(p.step)}</div>
     ${s.tip ? `<div class="tip"><div class="tip-ic">💡</div><div class="tip-tx">${esc(s.tip)}</div></div>` : ''}`;
   document.getElementById('step-card').scrollTop = 0;
@@ -1649,6 +1698,23 @@ function renderStep() {
   hint.classList.toggle('no-prev', p.step === 0);
   hint.classList.toggle('no-next', p.step === total - 1);
 }
+/* Quick read-only ingredient reference from the cooking screen, grouped by step
+   with lead times and a "To buy" flag on anything not in stock. */
+function openStepIngredients() {
+  const r = cur(), p = prog(); if (!r) return;
+  document.getElementById('step-ing-body').innerHTML = ingredientStepGroups(r).map(grp => {
+    const rows = grp.items.map(({ g, i }) => {
+      const cat = CAT_BY_ID[catOf(g)] || CAT_BY_ID.other;
+      const tag = ingState(p, i) === 'need' ? '<span class="ing-state st-need">To buy</span>' : '';
+      return `<div class="ing-item" style="cursor:default">
+        <div class="ing-info"><div class="ing-qty">${qty(g)}</div>
+          <div class="ing-name"><span class="ing-cat">${cat.emoji}</span>${esc(g.n)}</div></div>${tag}</div>`;
+    }).join('');
+    return ingStepHeader(grp) + rows;
+  }).join('');
+  openOverlay('ingredients-overlay');
+}
+function closeStepIngredients() { closeOverlay('ingredients-overlay'); }
 function renderDots() {
   const r = cur(), p = prog();
   document.getElementById('dots').innerHTML = r.steps.map((_, i) => {
@@ -1695,6 +1761,13 @@ function navStep(dir) {
       setTimeout(() => { card.style.transition = ''; going = false; saveState(); }, 240);
     }));
   }, 230);
+}
+/* Back while cooking: step back one stage; from the first step, return to the
+   ingredient checklist (not all the way out to the cookbook). */
+function stepBack() {
+  const p = prog();
+  if (p.step > 0) navStep('prev');
+  else { p.phase = 'ing'; openRecipe(state.active); }
 }
 function jumpStep(target) {
   const p = prog();
@@ -2804,7 +2877,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = 10;
+const APP_WEB_VERSION = 11;
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 
@@ -2962,6 +3035,7 @@ function handleBackButton() {
   const active = document.querySelector('.screen.active, .done-scr.active');
   const id = active ? active.id : 'screen-home';
   if (id === 'screen-import') { cancelImport(); return; }
+  if (id === 'screen-step') { stepBack(); return; }      // back steps through stages
   if (id === 'screen-suggest') { openPantry(); return; } // ideas -> pantry
   if (id === 'screen-home') { const A = CapApp(); if (A && A.exitApp) A.exitApp(); return; }
   goHome(); // checklist / step / done / pantry -> cookbook, matching the in-app back

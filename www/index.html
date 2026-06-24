@@ -383,6 +383,22 @@
     .pill-q { margin-left: 6px; font-weight: 700; color: var(--text); }
     .step-ing-link { display: block; width: 100%; margin: 0 0 16px; padding: 11px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--rs); color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     .step-ing-link:active { opacity: .7; }
+    .step-links { display: flex; gap: 8px; margin: 0 0 16px; }
+    .step-links .step-ing-link { margin: 0; }
+    /* Ask AI sheet */
+    .ask-sheet { height: 82vh; }
+    .ask-intro { font-size: 14px; color: var(--muted); line-height: 1.5; padding: 4px 2px 10px; }
+    .ask-suggest { display: flex; flex-wrap: wrap; gap: 8px; }
+    .ask-chip { padding: 9px 13px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .ask-chip:active { background: var(--border); }
+    .ask-msg { max-width: 86%; padding: 10px 13px; border-radius: 14px; font-size: 14.5px; line-height: 1.5; margin-bottom: 10px; word-wrap: break-word; }
+    .ask-msg.user { margin-left: auto; background: var(--ember); color: #fff; border-bottom-right-radius: 4px; }
+    .ask-msg.assistant { margin-right: auto; background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+    .ask-msg.ask-typing { color: var(--muted); font-style: italic; }
+    .ask-input-row { flex-shrink: 0; display: flex; gap: 8px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+    .ask-input-row input { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); color: var(--text); padding: 12px 14px; font-family: 'DM Sans', sans-serif; font-size: 14px; }
+    .ask-input-row input:focus { outline: none; border-color: var(--ember); }
+    .ask-input-row button { flex-shrink: 0; padding: 0 18px; border: none; border-radius: var(--r); background: var(--ember); color: #fff; font-weight: 600; font-size: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     /* ingredient step-group headers (checklist + ingredients overlay) */
     .step-div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 10px; padding: 16px 12px 6px; }
     .step-div .sd-step { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--dim); font-weight: 700; }
@@ -603,7 +619,8 @@
     }
 
     /* Shopping list */
-    .shop-btn-wrap { margin-top: 10px; }
+    .shop-btn-wrap { margin-top: 10px; display: flex; gap: 8px; }
+    .shop-btn-wrap .btn-ghost { flex: 1; }
     .shop-badge {
       display: inline-flex; align-items: center;
       background: rgba(232,113,42,.18); color: var(--ember);
@@ -703,6 +720,7 @@
         <button class="btn-ghost" id="btn-shop" onclick="openShop()">
           🛒 Shopping list <span class="shop-badge" id="shop-badge"></span>
         </button>
+        <button class="btn-ghost" onclick="openAsk()">💬 Ask AI</button>
       </div>
       <button class="skip-link" onclick="startCooking()">Skip the checklist — straight to cooking →</button>
     </div>
@@ -841,6 +859,26 @@
       </div>
       <div class="sheet-body">
         <div class="cat-grid" id="cat-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ASK AI ── -->
+  <div class="modal-overlay" id="ask-overlay" onclick="if(event.target===this)closeAsk()">
+    <div class="sheet ask-sheet">
+      <div class="sheet-handle"></div>
+      <div class="sheet-hdr sheet-hdr-row">
+        <div>
+          <div class="sheet-title">Ask about this recipe</div>
+          <div class="sheet-meta">Substitutions, sides, pairings &amp; more</div>
+        </div>
+        <button class="sheet-x" onclick="closeAsk()" aria-label="Close">✕</button>
+      </div>
+      <div class="sheet-body" id="ask-body"></div>
+      <div class="ask-input-row">
+        <input id="ask-input" type="text" placeholder="Ask a question…" autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();sendAsk();}">
+        <button onclick="sendAsk()">Ask</button>
       </div>
     </div>
   </div>
@@ -1769,7 +1807,10 @@ function renderStep() {
     <div class="s-title">${esc(s.title)}</div>
     <div class="s-instr">${esc(s.instr)}</div>
     ${(s.focus && s.focus.length) ? `<div class="focus-lbl">In this step</div><div class="pills">${pills}</div>` : ''}
-    <button class="step-ing-link" onclick="openStepIngredients()">🧾 See all ingredients</button>
+    <div class="step-links">
+      <button class="step-ing-link" onclick="openStepIngredients()">🧾 See all ingredients</button>
+      <button class="step-ing-link" onclick="openAsk()">💬 Ask AI</button>
+    </div>
     <div id="timer-slot">${timerCardHtml(p.step)}</div>
     ${s.tip ? `<div class="tip"><div class="tip-ic">💡</div><div class="tip-tx">${esc(s.tip)}</div></div>` : ''}`;
   document.getElementById('step-card').scrollTop = 0;
@@ -2738,6 +2779,95 @@ async function claudeExtract(contentBlocks, systemPrompt, schema) {
   return parsed;
 }
 
+/* ═══════════════ ASK AI ABOUT THIS RECIPE ═══════════════ */
+const ASK_SYSTEM = `You are a warm, expert cooking companion helping someone who is making a specific recipe (given below). Answer their questions about it — ingredient substitutions, side dishes, drink/wine pairings, scaling servings, making it ahead, storage, techniques, dietary swaps, what to do if something went wrong, etc.
+Be practical and concise: a few sentences or a short bulleted list, not an essay. Assume metric weights. Use the recipe's own ingredients and method as context, and respect any constraints implied by it. If you're asked something unrelated to cooking or this meal, answer briefly and steer back to the food.`;
+
+function recipeContext(r) {
+  const ings = (r.ings || []).map(g => '- ' + (g.a ? fmtQty(g.a, g.u) + ' ' : '') + g.n).join('\n');
+  const steps = (r.steps || []).map((s, i) => `${i + 1}. ${s.title}: ${s.instr}`).join('\n');
+  return `RECIPE: ${r.name}\nServes: ${r.base}${r.subtitle ? '\n' + r.subtitle : ''}\n\nINGREDIENTS:\n${ings}\n\nMETHOD:\n${steps}`;
+}
+
+/* Free-text chat completion (no structured output), used for recipe Q&A. */
+async function claudeAsk(messages, systemPrompt) {
+  if (!apiKey) throw new Error('Add your Anthropic API key in ⚙️ Settings to ask questions.');
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: latin1Headers({
+        'content-type': 'application/json',
+        'x-api-key': cleanApiKey(apiKey),
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      }),
+      body: JSON.stringify({ model: 'claude-opus-4-8', max_tokens: 1024, system: systemPrompt, messages }),
+    });
+  } catch (e) {
+    throw new Error('Could not reach the AI service — ' + ((e && e.message) || e) + '.');
+  }
+  if (!res.ok) {
+    let detail = '';
+    try { const j = await res.json(); detail = (j.error && j.error.message) || ''; } catch (e) {}
+    if (res.status === 401) throw new Error('The API key was rejected. Check it in ⚙️ settings.');
+    if (res.status === 429) throw new Error('AI rate limit hit — wait a minute and try again.');
+    throw new Error('AI request failed (' + res.status + '). ' + detail.slice(0, 140));
+  }
+  const data = await res.json();
+  const textBlock = (data.content || []).find(b => b.type === 'text');
+  return textBlock ? textBlock.text.trim() : '';
+}
+
+/* very small markdown -> HTML for the answer bubbles */
+function mdLite(t) {
+  let h = esc(t);
+  h = h.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+  h = h.replace(/(^|<br>|\n)\s*[-*]\s+/g, '$1• ');
+  return h.replace(/\n/g, '<br>');
+}
+
+let askThread = [], askRid = null, askBusy = false;
+function openAsk() {
+  const r = cur(); if (!r) return;
+  if (askRid !== r.id) { askRid = r.id; askThread = []; }
+  renderAsk();
+  openOverlay('ask-overlay');
+  setTimeout(() => { const i = document.getElementById('ask-input'); if (i) i.focus(); }, 250);
+}
+function closeAsk() { closeOverlay('ask-overlay'); }
+function renderAsk() {
+  const body = document.getElementById('ask-body'); if (!body) return;
+  let html;
+  if (!askThread.length && !askBusy) {
+    const qs = ['Good substitutions?', 'What sides go well?', 'What drink pairs with this?', 'Can I make it ahead?', 'How do I make it spicier?'];
+    html = `<div class="ask-intro">Ask anything about <b>${esc(cur().name)}</b> — substitutions, sides, pairings, make-ahead, techniques…</div>` +
+      `<div class="ask-suggest">${qs.map(q => `<button class="ask-chip" onclick="askQuick(this)">${esc(q)}</button>`).join('')}</div>`;
+  } else {
+    html = askThread.map(m => `<div class="ask-msg ${m.role}">${m.role === 'assistant' ? mdLite(m.content) : esc(m.content)}</div>`).join('');
+    if (askBusy) html += `<div class="ask-msg assistant ask-typing">thinking…</div>`;
+  }
+  body.innerHTML = html;
+  body.scrollTop = body.scrollHeight;
+}
+function askQuick(btn) { const i = document.getElementById('ask-input'); i.value = btn.textContent; sendAsk(); }
+async function sendAsk() {
+  const el = document.getElementById('ask-input'); if (!el) return;
+  const q = (el.value || '').trim();
+  if (!q || askBusy) return;
+  el.value = '';
+  if (!apiKey) { askThread.push({ role: 'user', content: q }, { role: 'assistant', content: 'Add your Anthropic API key in ⚙️ Settings to ask questions about your recipe.' }); renderAsk(); return; }
+  askThread.push({ role: 'user', content: q });
+  askBusy = true; renderAsk();
+  try {
+    const answer = await claudeAsk(askThread.map(m => ({ role: m.role, content: m.content })), ASK_SYSTEM + '\n\n' + recipeContext(cur()));
+    askThread.push({ role: 'assistant', content: answer || 'Sorry — I had no answer for that. Try rephrasing?' });
+  } catch (e) {
+    askThread.push({ role: 'assistant', content: '⚠️ ' + (e.message || 'Something went wrong.') });
+  }
+  askBusy = false; renderAsk();
+}
+
 /* ── photo import ── */
 function photoPicked(ev) {
   const file = ev.target.files && ev.target.files[0];
@@ -2981,7 +3111,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = '15.2';
+const APP_WEB_VERSION = '16';
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 

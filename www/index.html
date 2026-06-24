@@ -1350,10 +1350,40 @@ function fmtN(v) {
   if (bd > 0.1) return v.toFixed(1).replace(/\.0$/, '');
   return w > 0 ? `${w}${best}` : best;
 }
+/* ── metric weights ── */
+/* Convert imperial WEIGHTS (oz, lb) to grams/kg for display. Volume measures
+   (cups, tbsp, tsp, ml, ...) and natural counts (clove, tin, egg, ...) are left
+   exactly as the recipe states. */
+const IMP_TO_METRIC = {
+  oz:[28,'g'], ounce:[28,'g'], ounces:[28,'g'],
+  lb:[454,'g'], lbs:[454,'g'], pound:[454,'g'], pounds:[454,'g'],
+};
+const METRIC_UNITS = new Set(['ml','l','g','kg']);
+function toMetric(a, u) {
+  const key = String(u || '').trim().toLowerCase().replace(/\.$/, '');
+  const conv = IMP_TO_METRIC[key];
+  if (!conv || !a) return { a, u };
+  let amt = a * conv[0], unit = conv[1];
+  if (unit === 'g' && amt >= 1000) { amt /= 1000; unit = 'kg'; }
+  return { a: amt, u: unit };
+}
+function fmtMetricNum(v, unit) {
+  if (unit === 'l' || unit === 'kg') return String(Math.round(v * 100) / 100);
+  if (v < 10)  return String(Math.round(v));        // small ml/g: nearest 1
+  if (v < 100) return String(Math.round(v / 5) * 5); // nearest 5
+  return String(Math.round(v / 10) * 10);            // nearest 10
+}
+/* Format a scaled amount + unit, converting to metric. */
+function fmtQty(a, u) {
+  const m = toMetric(a, u);
+  const unit = String(m.u || '').toLowerCase();
+  if (METRIC_UNITS.has(unit)) return `${fmtMetricNum(m.a, unit)} ${m.u}`;
+  return m.u ? `${fmtN(m.a)} ${m.u}` : fmtN(m.a); // counts/natural units keep fractions
+}
 function qty(g) {
   if (!g.a) return g.u ? esc(g.u) : '';
   const v = g.a * (prog().servings / cur().base);
-  return g.u ? `${fmtN(v)} ${esc(g.u)}` : fmtN(v);
+  return esc(fmtQty(v, g.u));
 }
 
 /* ═══════════════ SERVINGS ═══════════════ */
@@ -1931,7 +1961,7 @@ function buildListText() {
   const plain = g => {
     if (!g.a) return g.u || '';
     const v = g.a * (p.servings / r.base);
-    return g.u ? `${fmtN(v)} ${g.u}` : fmtN(v);
+    return fmtQty(v, g.u);
   };
   const lines = needed.map(g => `${plain(g).padEnd(12)}${g.n}`).join('\n');
   return `${r.name} — ${p.servings} serving${p.servings > 1 ? 's' : ''}\n${'─'.repeat(36)}\n${lines}`;
@@ -1985,7 +2015,7 @@ function setPanCatFilter(cid)    { panCatFilter = (panCatFilter === cid) ? 'all'
 function ingQty(g, servings, base) {
   if (!g.a) return g.u || '';
   const v = g.a * ((servings || base) / base);
-  return g.u ? `${fmtN(v)} ${g.u}` : fmtN(v);
+  return fmtQty(v, g.u);
 }
 
 /* Every to-buy item across all recipes, deduped by normalised name.
@@ -2377,7 +2407,7 @@ function cancelImport() {
 function showPreview(rec) {
   pendingRecipe = rec;
   const ingRows = rec.ings.map(g => {
-    const amt = g.a ? (g.u ? `${fmtN(g.a)} ${esc(g.u)}` : fmtN(g.a)) : esc(g.u || '');
+    const amt = g.a ? esc(fmtQty(g.a, g.u)) : esc(g.u || '');
     return `<div class="imp-row"><span class="imp-row-amt">${amt}</span><span>${esc(g.n)}</span></div>`;
   }).join('');
   const stepRows = rec.steps.map((s, i) => `
@@ -2581,7 +2611,7 @@ const RECIPE_SCHEMA = {
     ings:     { type: 'array', items: { type: 'object', additionalProperties: false, required: ['a','u','n','c'],
                 properties: {
                   a: { type: 'number', description: 'Quantity as a number; 0 if not quantifiable (e.g. "salt to taste")' },
-                  u: { type: 'string', description: 'Unit (kg, cup, tbsp, tin, cloves, ...); empty string if unitless or not quantifiable' },
+                  u: { type: 'string', description: 'Weights must be metric: g or kg (never oz or lb). Volume measures (ml, l, cup, tbsp, tsp) and natural count units (tin, can, clove, egg, sachet, pinch) are fine. Empty string if unitless or not quantifiable.' },
                   n: { type: 'string', description: 'Ingredient name with prep notes, e.g. "Onion, finely chopped"' },
                   c: { type: 'string', enum: ['produce','butchery','seafood','dairy','bakery','pantry','spices','frozen','drinks','other'],
                        description: 'Shop/aisle category: produce (fresh fruit & veg), butchery (meat), seafood, dairy (milk/cheese/eggs), bakery (bread), pantry (tins, dry goods, oil, rice, pasta), spices (spices, stock, sauces, condiments), frozen, drinks (alcohol/juice), or other' } } } },
@@ -2603,7 +2633,7 @@ Rules:
 - Preserve the recipe's authentic quantities and intent. Do not invent ingredients.
 - Group the method into 4-10 clear steps a home cook can follow on a phone while cooking.
 - Every step that involves waiting or timed cooking gets a timer in seconds. Quick prep steps get null.
-- For ingredient quantities: a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for things like "salt to taste" and put the full phrasing in n.
+- For ingredient quantities: a is the number (e.g. 1.5), u the unit. WEIGHTS must be metric — g or kg; convert any ounces or pounds in the source to g/kg. Volume measures (ml, l, cup, tbsp, tsp) and natural counts (tin, can, clove, egg, sachet, pinch) are fine as-is. Use a=0 and u="" for things like "salt to taste" and put the full phrasing in n.
 - Set c to the shop/aisle category for each ingredient so it can be sorted on a shopping list (see the schema's allowed values).
 - focus lists the ingredient names handled in that step.
 - If the source is a photo, read it carefully including handwriting. If parts are unreadable, make the sensible choice and note it in the relevant step's tip.
@@ -2612,7 +2642,7 @@ Rules:
 const GENERATE_SYSTEM = `You invent complete, authentic, practical recipes from a short description, formatted as structured JSON for a step-by-step cooking companion app.
 Rules:
 - Create a realistic, genuinely cookable recipe that matches the description — cuisine, servings, dietary needs, spice level, time, and any other constraints the user gives. If servings aren't stated, default to 4 and set base to match.
-- Use real, sensible ingredient quantities. a is the number (e.g. 1.5), u the unit (e.g. "kg"). Use a=0 and u="" for "to taste" items and put the full phrasing in n. Set c to each ingredient's shop/aisle category (see the schema's allowed values).
+- Use real, sensible ingredient quantities. WEIGHTS must be metric — g or kg (never oz or lb). Volume measures (ml, l, cup, tbsp, tsp) and natural counts (tin, clove, egg, etc.) are fine. a is the number, u the unit. Use a=0 and u="" for "to taste" items and put the full phrasing in n. Set c to each ingredient's shop/aisle category (see the schema's allowed values).
 - Group the method into 4-10 clear steps a home cook can follow on a phone while cooking. Every step that involves waiting or timed cooking gets a timer in seconds; quick prep steps get null. focus lists the ingredients used in that step.
 - Keep it makeable by a home cook with normal equipment unless the description asks otherwise. Honour explicit constraints (vegetarian, no nuts, mild, quick, etc.).
 - If the description is vague, make reasonable, common-sense choices rather than refusing.`;
@@ -2628,7 +2658,7 @@ Rules:
 - Propose exactly 3 varied, genuinely cookable recipes that LEAN ON the listed pantry ingredients — use as many of them as makes sense.
 - Don't be strict: a recipe may need a few extra common ingredients (oil, salt, water, basic spices, an onion, etc.) beyond the list. Prefer recipes that need fewer extras.
 - Make the 3 meaningfully different from each other (different cuisines or meal types).
-- Each recipe must be complete per the schema: real quantities, 4-10 steps, timers in seconds where relevant, focus per step, and the c shop/aisle category on every ingredient.
+- Each recipe must be complete per the schema: real quantities (weights in metric g/kg — never oz/lb; volume measures like ml/cup/tbsp/tsp and natural counts like tin/clove are fine), 4-10 steps, timers in seconds where relevant, focus per step, and the c shop/aisle category on every ingredient.
 - Default to 4 servings unless a dish naturally differs; set base to match.`;
 
 // Strip invisible/zero-width characters and surrounding whitespace from a
@@ -2951,7 +2981,7 @@ document.addEventListener('keydown', e => {
    authoritative for "which web version am I". The APK's native build
    (versionCode) is read separately via App.getInfo, because OTA can't change
    native code. */
-const APP_WEB_VERSION = '15.1';
+const APP_WEB_VERSION = '15.2';
 const UPDATE_URL_KEY = 'cookbook_update_url';
 const DEFAULT_MANIFEST = 'https://github.com/aphile-m/aphiles-cookbook/releases/latest/download/version.json'; // overridable in Settings → Update source
 

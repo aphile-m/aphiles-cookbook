@@ -2,8 +2,8 @@
    requests (so updates land on reload), falling back to cache when offline.
    Cross-origin requests (Google Fonts, the Anthropic API, GitHub releases) are
    left untouched. Bump CACHE to invalidate old caches on a new release. */
-const CACHE = 'cookbook-v15';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png'];
+const CACHE = 'cookbook-v16';
+const SHELL = ['./', './index.html', './sync.js', './manifest.webmanifest', './icon-192.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
